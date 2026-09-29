@@ -42,8 +42,6 @@
 #include "ui/CameraLinkHelper.h"
 #include "ui/CameraTool2D.h"
 #include "ui/ClipToolController.h"
-#include "ui/SplineToolController.h"
-#include "ui/TerrainToolController.h"
 #include "ui/ControlPointTool.h"
 #include "ui/ControlPointToolController.h"
 #include "ui/CreateEntityToolController.h"
@@ -60,7 +58,9 @@
 #include "ui/ScaleToolController.h"
 #include "ui/SelectionTool.h"
 #include "ui/ShearToolController.h"
+#include "ui/SplineToolController.h"
 #include "ui/SweepToolController.h"
+#include "ui/TerrainToolController.h"
 #include "ui/VertexTool.h"
 #include "ui/VertexToolController.h"
 
@@ -146,7 +146,8 @@ void MapView2D::initializeToolChain(MapViewToolBox& toolBox)
     std::make_unique<ControlPointToolController>(toolBox.controlPointTool()));
   addToolController(
     std::make_unique<CreateEntityToolController2D>(toolBox.createEntityTool()));
-  addToolController(std::make_unique<SelectionTool>(m_document));
+  addToolController(
+    std::make_unique<SelectionTool>(m_document, &toolBox.marqueeSelectionModeRef()));
   addToolController(
     std::make_unique<DrawShapeToolController2D>(toolBox.drawShapeTool(), m_document));
 }

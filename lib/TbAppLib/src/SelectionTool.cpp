@@ -19,10 +19,13 @@
 
 #include "ui/SelectionTool.h"
 
+#include "base/Color.h"
 #include "base/PreferenceManager.h"
+#include "gl/Camera.h"
 #include "mdl/BrushFace.h"
 #include "mdl/BrushNode.h"
 #include "mdl/EditorContext.h"
+#include "mdl/EntityNode.h"
 #include "mdl/Grid.h"
 #include "mdl/GroupNode.h" // IWYU pragma: keep
 #include "mdl/Hit.h"
@@ -33,11 +36,15 @@
 #include "mdl/Map_Selection.h"
 #include "mdl/ModelUtils.h"
 #include "mdl/Node.h"
+#include "mdl/NodeHandleManager.h"
+#include "mdl/NodeHandles.h"
+#include "mdl/PatchNode.h"
 #include "mdl/Transaction.h"
 #include "mdl/TransactionScope.h"
 #include "mdl/WorldNode.h"
 #include "prefs/Preferences.h"
 #include "render/RenderContext.h"
+#include "render/RenderService.h"
 #include "ui/GestureTracker.h"
 #include "ui/InputState.h"
 #include "ui/MapDocument.h"
@@ -45,6 +52,8 @@
 #include "kd/contracts.h"
 
 #include <algorithm>
+#include <array>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_set>
@@ -258,12 +267,263 @@ public:
   void cancel() override { m_map.cancelTransaction(); }
 };
 
+struct MarqueeRect
+{
+  float minX;
+  float minY;
+  float maxX;
+  float maxY;
+
+  static MarqueeRect between(const vm::vec2f& a, const vm::vec2f& b)
+  {
+    return {
+      std::min(a.x(), b.x()),
+      std::min(a.y(), b.y()),
+      std::max(a.x(), b.x()),
+      std::max(a.y(), b.y()),
+    };
+  }
+
+  bool contains(const vm::vec2f& point) const
+  {
+    return point.x() >= minX && point.x() <= maxX && point.y() >= minY
+           && point.y() <= maxY;
+  }
+
+  bool contains(const MarqueeRect& other) const
+  {
+    return other.minX >= minX && other.maxX <= maxX && other.minY >= minY
+           && other.maxY <= maxY;
+  }
+
+  bool intersects(const MarqueeRect& other) const
+  {
+    return other.maxX >= minX && other.minX <= maxX && other.maxY >= minY
+           && other.minY <= maxY;
+  }
+};
+
+std::optional<vm::vec2f> projectToView(const gl::Camera& camera, const vm::vec3d& point)
+{
+  const auto projected = camera.project(vm::vec3f{point});
+  // Allow for rounding at the near and far planes when clipping bounding boxes.
+  if (projected.z() < -0.0001f || projected.z() > 1.0001f)
+  {
+    return std::nullopt;
+  }
+  return vm::vec2f{
+    projected.x(), static_cast<float>(camera.viewport().height) - projected.y()};
+}
+
+std::optional<MarqueeRect> projectBounds(
+  const gl::Camera& camera, const vm::bbox3d& bounds, bool& fullyInDepth)
+{
+  auto result = std::optional<MarqueeRect>{};
+  fullyInDepth = true;
+  const auto addPoint = [&](const vm::vec3d& vertex) {
+    if (const auto point = projectToView(camera, vertex))
+    {
+      if (result)
+      {
+        result->minX = std::min(result->minX, point->x());
+        result->minY = std::min(result->minY, point->y());
+        result->maxX = std::max(result->maxX, point->x());
+        result->maxY = std::max(result->maxY, point->y());
+      }
+      else
+      {
+        result = MarqueeRect{point->x(), point->y(), point->x(), point->y()};
+      }
+    }
+  };
+  const auto depth = [&](const vm::vec3d& vertex) {
+    return vm::dot(vm::vec3f{vertex} - camera.position(), camera.direction());
+  };
+
+  for (const auto& vertex : bounds.vertices())
+  {
+    const auto d = depth(vertex);
+    if (d >= camera.nearPlane() && d <= camera.farPlane())
+    {
+      addPoint(vertex);
+    }
+    else
+    {
+      fullyInDepth = false;
+    }
+  }
+
+  // The visible part of a box can cross a clipping plane without containing any
+  // visible corner. Project the clipped edges as well as the original corners.
+  bounds.for_each_edge([&](const vm::vec3d& a, const vm::vec3d& b) {
+    const auto aDepth = depth(a);
+    const auto bDepth = depth(b);
+    for (const auto clipDepth : std::array{camera.nearPlane(), camera.farPlane()})
+    {
+      if (
+        (aDepth < clipDepth && bDepth > clipDepth)
+        || (bDepth < clipDepth && aDepth > clipDepth))
+      {
+        const auto t = static_cast<double>(clipDepth - aDepth) / (bDepth - aDepth);
+        addPoint(a + t * (b - a));
+      }
+    }
+  });
+  return result;
+}
+
+bool matchesMarqueeMode(
+  const mdl::Node& node,
+  const MarqueeSelectionMode mode,
+  const mdl::EditorContext& editorContext)
+{
+  const auto* brush = dynamic_cast<const mdl::BrushNode*>(&node);
+  const auto* entity = dynamic_cast<const mdl::EntityNode*>(&node);
+  switch (mode)
+  {
+  case MarqueeSelectionMode::AllObjects:
+    // A brush entity is selected as one entity, rather than along with its brushes.
+    if (brush)
+    {
+      if (const auto* parent = dynamic_cast<const mdl::EntityNode*>(node.parent()))
+      {
+        return !editorContext.selectable(*parent);
+      }
+    }
+    return true;
+  case MarqueeSelectionMode::Brushes:
+    return brush != nullptr;
+  case MarqueeSelectionMode::Entities:
+    return entity != nullptr;
+  case MarqueeSelectionMode::Patches:
+    return dynamic_cast<const mdl::PatchNode*>(&node) != nullptr;
+  case MarqueeSelectionMode::Vertices:
+    return false;
+  }
+  return false;
+}
+
+class MarqueeSelectionDragTracker : public GestureTracker
+{
+private:
+  SelectionTool& m_tool;
+  mdl::Map& m_map;
+  const gl::Camera& m_camera;
+  MarqueeSelectionMode m_mode;
+  vm::vec2f m_start;
+  vm::vec2f m_current;
+  bool m_extend;
+
+public:
+  MarqueeSelectionDragTracker(
+    SelectionTool& tool,
+    mdl::Map& map,
+    const gl::Camera& camera,
+    const MarqueeSelectionMode mode,
+    const InputState& inputState)
+    : m_tool{tool}
+    , m_map{map}
+    , m_camera{camera}
+    , m_mode{mode}
+    , m_start{inputState.mouseX(), inputState.mouseY()}
+    , m_current{m_start}
+    , m_extend{inputState.modifierKeysDown(ModifierKeys::Shift)}
+  {
+  }
+
+  bool update(const InputState& inputState) override
+  {
+    m_current = vm::vec2f{inputState.mouseX(), inputState.mouseY()};
+    return true;
+  }
+
+  void end(const InputState& inputState) override
+  {
+    update(inputState);
+    const auto area = MarqueeRect::between(m_start, m_current);
+    if (m_mode == MarqueeSelectionMode::Vertices)
+    {
+      auto& handles = m_map.nodeHandles();
+      auto selected = std::vector<mdl::VertexHandle>{};
+      for (const auto& handle : handles.allHandles<mdl::VertexHandle>())
+      {
+        if (const auto point = projectToView(m_camera, handle.position);
+            point && area.contains(*point))
+        {
+          selected.push_back(handle);
+        }
+      }
+      if (!m_extend)
+      {
+        handles.deselectAllHandles<mdl::VertexHandle>();
+      }
+      handles.selectHandles<mdl::VertexHandle>(selected);
+      static_cast<Tool&>(m_tool).refreshViews();
+      m_tool.notifyToolHandleSelectionChanged();
+      return;
+    }
+
+    const auto& editorContext = m_map.editorContext();
+    auto selected = std::vector<mdl::Node*>{};
+    for (auto* node : mdl::collectSelectableNodes({&m_map.worldNode()}, editorContext))
+    {
+      if (!matchesMarqueeMode(*node, m_mode, editorContext))
+      {
+        continue;
+      }
+      auto fullyInDepth = false;
+      if (
+        const auto bounds = projectBounds(m_camera, node->physicalBounds(), fullyInDepth);
+        bounds
+        && (m_current.x() >= m_start.x() ? fullyInDepth && area.contains(*bounds) : area.intersects(*bounds)))
+      {
+        selected.push_back(node);
+      }
+    }
+
+    auto transaction = mdl::Transaction{m_map, "Marquee Select"};
+    if (!m_extend || m_map.selection().hasBrushFaces())
+    {
+      deselectAll(m_map);
+    }
+    selectNodes(m_map, selected);
+    transaction.commit();
+  }
+
+  void cancel() override {}
+
+  void render(
+    const InputState&,
+    render::RenderContext& renderContext,
+    render::RenderBatch& renderBatch) const override
+  {
+    const auto area = MarqueeRect::between(m_start, m_current);
+    constexpr auto overlayDepth = 0.01f;
+    const auto polygon = std::vector{
+      m_camera.unproject(area.minX, area.minY, overlayDepth),
+      m_camera.unproject(area.minX, area.maxY, overlayDepth),
+      m_camera.unproject(area.maxX, area.maxY, overlayDepth),
+      m_camera.unproject(area.maxX, area.minY, overlayDepth),
+    };
+
+    auto service = render::RenderService{renderContext, renderBatch};
+    service.setShowOccludedObjects();
+    service.setForegroundColor(RgbaF{0.25f, 0.65f, 1.0f, 0.2f});
+    service.renderFilledPolygon(polygon);
+    service.setForegroundColor(RgbaF{0.4f, 0.8f, 1.0f, 1.0f});
+    service.setLineWidth(2.0f);
+    service.renderPolygonOutline(polygon);
+  }
+};
+
 } // namespace
 
-SelectionTool::SelectionTool(MapDocument& document)
+SelectionTool::SelectionTool(
+  MapDocument& document, const MarqueeSelectionMode* marqueeMode)
   : ToolController{}
   , Tool{true}
   , m_document{document}
+  , m_marqueeMode{marqueeMode}
 {
 }
 
@@ -518,6 +778,20 @@ std::unique_ptr<GestureTracker> SelectionTool::acceptMouseDrag(
 
   auto& map = m_document.map();
   const auto& editorContext = map.editorContext();
+
+  if (
+    inputState.mouseButtonsPressed(MouseButtons::Middle)
+    && inputState.checkModifierKeys(
+      ModifierKeyPressed::Yes, ModifierKeyPressed::No, ModifierKeyPressed::DontCare)
+    && editorContext.canChangeSelection())
+  {
+    return std::make_unique<MarqueeSelectionDragTracker>(
+      *this,
+      map,
+      inputState.camera(),
+      m_marqueeMode ? *m_marqueeMode : MarqueeSelectionMode::AllObjects,
+      inputState);
+  }
 
   if (!handleClick(inputState, editorContext) || !isMultiClick(inputState))
   {

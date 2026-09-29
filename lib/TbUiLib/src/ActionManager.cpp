@@ -220,7 +220,8 @@ void ActionManager::createViewActions()
     "Move Forward",
     ActionContext::AnyView | ActionContext::NodeSelection
       | ActionContext::SelectionOwnedByTool | ActionContext::AnyNodeHandleTool
-      | ActionContext::RotateTool | ActionContext::SweepTool | ActionContext::SplineTool | ActionContext::NoTool,
+      | ActionContext::RotateTool | ActionContext::SweepTool | ActionContext::SplineTool
+      | ActionContext::NoTool,
     KeySequence{"Up"},
     [](auto& context) { context.mapView().move(vm::direction::forward); },
     [](const auto& context) { return context.hasDocument(); },
@@ -230,7 +231,8 @@ void ActionManager::createViewActions()
     "Move Backward",
     ActionContext::AnyView | ActionContext::NodeSelection
       | ActionContext::SelectionOwnedByTool | ActionContext::AnyNodeHandleTool
-      | ActionContext::RotateTool | ActionContext::SweepTool | ActionContext::SplineTool | ActionContext::NoTool,
+      | ActionContext::RotateTool | ActionContext::SweepTool | ActionContext::SplineTool
+      | ActionContext::NoTool,
     KeySequence{"Down"},
     [](auto& context) { context.mapView().move(vm::direction::backward); },
     [](const auto& context) { return context.hasDocument(); },
@@ -240,7 +242,8 @@ void ActionManager::createViewActions()
     "Move Left",
     ActionContext::AnyView | ActionContext::NodeSelection
       | ActionContext::SelectionOwnedByTool | ActionContext::AnyNodeHandleTool
-      | ActionContext::RotateTool | ActionContext::SweepTool | ActionContext::SplineTool | ActionContext::NoTool,
+      | ActionContext::RotateTool | ActionContext::SweepTool | ActionContext::SplineTool
+      | ActionContext::NoTool,
     KeySequence{"Left"},
     [](auto& context) { context.mapView().move(vm::direction::left); },
     [](const auto& context) { return context.hasDocument(); },
@@ -250,7 +253,8 @@ void ActionManager::createViewActions()
     "Move Right",
     ActionContext::AnyView | ActionContext::NodeSelection
       | ActionContext::SelectionOwnedByTool | ActionContext::AnyNodeHandleTool
-      | ActionContext::RotateTool | ActionContext::SweepTool | ActionContext::SplineTool | ActionContext::NoTool,
+      | ActionContext::RotateTool | ActionContext::SweepTool | ActionContext::SplineTool
+      | ActionContext::NoTool,
     KeySequence{"Right"},
     [](auto& context) { context.mapView().move(vm::direction::right); },
     [](const auto& context) { return context.hasDocument(); },
@@ -260,7 +264,8 @@ void ActionManager::createViewActions()
     "Move Up",
     ActionContext::AnyView | ActionContext::NodeSelection
       | ActionContext::SelectionOwnedByTool | ActionContext::AnyNodeHandleTool
-      | ActionContext::RotateTool | ActionContext::SweepTool | ActionContext::SplineTool | ActionContext::NoTool,
+      | ActionContext::RotateTool | ActionContext::SweepTool | ActionContext::SplineTool
+      | ActionContext::NoTool,
     KeySequence{"PgUp"},
     [](auto& context) { context.mapView().move(vm::direction::up); },
     [](const auto& context) { return context.hasDocument(); },
@@ -270,7 +275,8 @@ void ActionManager::createViewActions()
     "Move Down",
     ActionContext::AnyView | ActionContext::NodeSelection
       | ActionContext::SelectionOwnedByTool | ActionContext::AnyNodeHandleTool
-      | ActionContext::RotateTool | ActionContext::SweepTool | ActionContext::SplineTool | ActionContext::NoTool,
+      | ActionContext::RotateTool | ActionContext::SweepTool | ActionContext::SplineTool
+      | ActionContext::NoTool,
     KeySequence{"PgDown"},
     [](auto& context) { context.mapView().move(vm::direction::down); },
     [](const auto& context) { return context.hasDocument(); },
@@ -1573,8 +1579,7 @@ void ActionManager::createToolsMenu()
     KeySequence{"Shift+Y"},
     [](auto& context) { context.mapWindow().toolBox().toggleSplineTool(); },
     [](const auto& context) {
-      return context.hasDocument()
-             && context.mapWindow().toolBox().canToggleSplineTool();
+      return context.hasDocument() && context.mapWindow().toolBox().canToggleSplineTool();
     },
     [](const auto& context) {
       return context.hasDocument() && context.mapWindow().toolBox().splineToolActive();
@@ -1596,6 +1601,33 @@ void ActionManager::createToolsMenu()
     },
     std::filesystem::path{"TerrainTool.svg"},
   }));
+  auto& marqueeMenu = toolsMenu.addMenu("Marquee Selection (Ctrl+Middle Drag)");
+  const auto addMarqueeMode =
+    [&](const std::string& name, const MarqueeSelectionMode mode) {
+      marqueeMenu.addItem(addAction(Action{
+        std::filesystem::path{"Menu/Edit/Tools/Marquee Selection/" + name},
+        name,
+        ActionContext::Any,
+        KeySequence{},
+        [mode](auto& context) {
+          context.mapWindow().toolBox().setMarqueeSelectionMode(mode);
+        },
+        [mode](const auto& context) {
+          return context.hasDocument()
+               && (mode != MarqueeSelectionMode::Vertices
+                   || context.mapWindow().toolBox().canToggleAnyVertexTool());
+        },
+        [mode](const auto& context) {
+          return context.hasDocument()
+                 && context.mapWindow().toolBox().marqueeSelectionMode() == mode;
+        },
+      }));
+    };
+  addMarqueeMode("All Objects", MarqueeSelectionMode::AllObjects);
+  addMarqueeMode("Brushes", MarqueeSelectionMode::Brushes);
+  addMarqueeMode("Entities", MarqueeSelectionMode::Entities);
+  addMarqueeMode("Patches", MarqueeSelectionMode::Patches);
+  addMarqueeMode("Vertices of Selected Brushes", MarqueeSelectionMode::Vertices);
   toolsMenu.addItem(addAction(Action{
     "Controls/Map view/Deactivate current tool",
     "Deactivate Current Tool",

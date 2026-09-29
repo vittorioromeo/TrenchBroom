@@ -72,8 +72,8 @@
 #include "ui/SetBrushFaceAttributesTool.h"
 #include "ui/ShearToolController.h"
 #include "ui/SplineToolController.h"
-#include "ui/TerrainToolController.h"
 #include "ui/SweepToolController.h"
+#include "ui/TerrainToolController.h"
 #include "ui/VertexTool.h"
 #include "ui/VertexToolController.h"
 
@@ -138,7 +138,8 @@ void MapView3D::initializeToolChain(MapViewToolBox& toolBox)
   addToolController(
     std::make_unique<CreateEntityToolController3D>(toolBox.createEntityTool()));
   addToolController(std::make_unique<SetBrushFaceAttributesTool>(m_document));
-  addToolController(std::make_unique<SelectionTool>(m_document));
+  addToolController(
+    std::make_unique<SelectionTool>(m_document, &toolBox.marqueeSelectionModeRef()));
   addToolController(
     std::make_unique<DrawShapeToolController3D>(toolBox.drawShapeTool(), m_document));
 }

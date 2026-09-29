@@ -18,6 +18,7 @@
  */
 
 #include "gl/OrthographicCamera.h"
+#include "gl/PerspectiveCamera.h"
 #include "mdl/Brush.h"
 #include "mdl/BrushBuilder.h"
 #include "mdl/BrushFace.h"
@@ -36,6 +37,8 @@
 #include "mdl/Map_Nodes.h"
 #include "mdl/Map_Picking.h"
 #include "mdl/Map_Selection.h"
+#include "mdl/NodeHandleManager.h"
+#include "mdl/NodeHandles.h"
 #include "mdl/PickResult.h"
 #include "mdl/TestUtils.h"
 #include "mdl/WorldNode.h"
@@ -47,6 +50,9 @@
 #include "ui/SelectionTool.h"
 
 #include "kd/result.h"
+
+#include <algorithm>
+#include <limits>
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_vector.hpp>
@@ -867,6 +873,156 @@ TEST_CASE("SelectionTool")
         }
       }
     }
+  }
+}
+
+TEST_CASE("SelectionTool marquee selection")
+{
+  auto fixture = MapDocumentFixture{};
+  auto& document = fixture.create();
+  auto& map = document.map();
+  const auto& worldNode = map.worldNode();
+  auto builder = mdl::BrushBuilder{
+    worldNode.mapFormat(),
+    map.worldBounds(),
+    map.gameInfo().gameConfig.faceAttribsConfig.defaultUvAttributes,
+    map.gameInfo().gameConfig.faceAttribsConfig.defaultSurfaceAttributes};
+  auto* brushNode =
+    new mdl::BrushNode{builder.createCube(32.0, "marquee") | kdl::value()};
+  auto* entityNode = new mdl::EntityNode{mdl::Entity{{{"origin", "128 0 0"}}}};
+  addNodes(map, {{&parentForNodes(map), {brushNode, entityNode}}});
+
+  const auto exercise = [&](auto& camera) {
+    camera.moveTo({0, 0, 256});
+    camera.setDirection({0, 0, -1}, {0, 1, 0});
+
+    struct ScreenBounds
+    {
+      float minX, minY, maxX, maxY;
+    };
+    const auto screenBounds = [&](const mdl::Node& node) {
+      auto result = ScreenBounds{
+        std::numeric_limits<float>::max(),
+        std::numeric_limits<float>::max(),
+        std::numeric_limits<float>::lowest(),
+        std::numeric_limits<float>::lowest()};
+      for (const auto& vertex : node.physicalBounds().vertices())
+      {
+        const auto projected = camera.project(vm::vec3f{vertex});
+        const auto y = static_cast<float>(camera.viewport().height) - projected.y();
+        result.minX = std::min(result.minX, projected.x());
+        result.minY = std::min(result.minY, y);
+        result.maxX = std::max(result.maxX, projected.x());
+        result.maxY = std::max(result.maxY, y);
+      }
+      return result;
+    };
+
+    auto mode = MarqueeSelectionMode::AllObjects;
+    auto tool = SelectionTool{document, &mode};
+    auto plainMiddle = InputState{100, 100};
+    plainMiddle.mouseDown(MouseButtons::Middle);
+    plainMiddle.setPickRequest({vm::ray3d{camera.pickRay(100, 100)}, camera});
+    CHECK(tool.acceptMouseDrag(plainMiddle) == nullptr);
+    const auto drag =
+      [&](const vm::vec2f& start, const vm::vec2f& end, const bool extend = false) {
+        auto inputState = InputState{start.x(), start.y()};
+        inputState.setModifierKeys(
+          ModifierKeys::CtrlCmd | (extend ? ModifierKeys::Shift : ModifierKeys::None));
+        inputState.mouseDown(MouseButtons::Middle);
+        inputState.setPickRequest(
+          {vm::ray3d{camera.pickRay(start.x(), start.y())}, camera});
+        auto tracker = tool.acceptMouseDrag(inputState);
+        REQUIRE(tracker != nullptr);
+        inputState.mouseMove(end.x(), end.y(), end.x() - start.x(), end.y() - start.y());
+        REQUIRE(tracker->update(inputState));
+        tracker->end(inputState);
+      };
+
+    const auto brush = screenBounds(*brushNode);
+    const auto entity = screenBounds(*entityNode);
+    drag(
+      {std::min(brush.minX, entity.minX) - 2, std::min(brush.minY, entity.minY) - 2},
+      {std::max(brush.maxX, entity.maxX) + 2, std::max(brush.maxY, entity.maxY) + 2});
+    CHECK_THAT(
+      map.selection().nodes,
+      UnorderedEquals(std::vector<mdl::Node*>{brushNode, entityNode}));
+
+    mode = MarqueeSelectionMode::Brushes;
+    drag({brush.minX - 2, brush.minY - 2}, {brush.maxX + 2, brush.maxY + 2});
+    CHECK(map.selection() == mdl::makeSelection(map, {brushNode}));
+
+    mode = MarqueeSelectionMode::Entities;
+    drag({entity.minX - 2, entity.minY - 2}, {entity.maxX + 2, entity.maxY + 2});
+    CHECK(map.selection() == mdl::makeSelection(map, {entityNode}));
+
+    mode = MarqueeSelectionMode::Brushes;
+    drag({brush.minX - 2, brush.minY - 2}, {brush.maxX + 2, brush.maxY + 2}, true);
+    CHECK_THAT(
+      map.selection().nodes,
+      UnorderedEquals(std::vector<mdl::Node*>{brushNode, entityNode}));
+
+    // A narrow forward drag does not fully contain the brush. The same rectangle
+    // in the reverse direction intersects it and selects it.
+    drag({brush.minX - 4, brush.minY - 2}, {brush.minX + 4, brush.maxY + 2});
+    CHECK(!map.selection().hasAny());
+    drag({brush.minX + 4, brush.minY - 2}, {brush.minX - 4, brush.maxY + 2});
+    CHECK(map.selection() == mdl::makeSelection(map, {brushNode}));
+
+    mode = MarqueeSelectionMode::Entities;
+    auto canceledInput = InputState{entity.minX - 2, entity.minY - 2};
+    canceledInput.setModifierKeys(ModifierKeys::CtrlCmd);
+    canceledInput.mouseDown(MouseButtons::Middle);
+    canceledInput.setPickRequest(
+      {vm::ray3d{camera.pickRay(canceledInput.mouseX(), canceledInput.mouseY())},
+       camera});
+    auto canceledTracker = tool.acceptMouseDrag(canceledInput);
+    REQUIRE(canceledTracker != nullptr);
+    canceledInput.mouseMove(entity.maxX + 2, entity.maxY + 2, 0, 0);
+    REQUIRE(canceledTracker->update(canceledInput));
+    canceledTracker->cancel();
+    CHECK(map.selection() == mdl::makeSelection(map, {brushNode}));
+
+    map.nodeHandles().addHandles<mdl::VertexHandle>(*brushNode);
+    mode = MarqueeSelectionMode::Vertices;
+    const auto vertex = *map.nodeHandles().allHandles<mdl::VertexHandle>().begin();
+    const auto point = camera.project(vm::vec3f{vertex.position});
+    const auto y = static_cast<float>(camera.viewport().height) - point.y();
+    drag({point.x() - 1, y - 1}, {point.x() + 1, y + 1});
+    CHECK(map.nodeHandles().selectedHandleCount<mdl::VertexHandle>() > 0);
+    CHECK(
+      map.nodeHandles().selectedHandleCount<mdl::VertexHandle>()
+      < map.nodeHandles().handleCount<mdl::VertexHandle>());
+    map.nodeHandles().clear<mdl::VertexHandle>();
+  };
+
+  SECTION("2D")
+  {
+    auto camera = gl::OrthographicCamera{};
+    exercise(camera);
+  }
+  SECTION("3D")
+  {
+    auto camera = gl::PerspectiveCamera{};
+    exercise(camera);
+
+    // The near plane cuts through this brush. Its clipped front edge still
+    // fills the right side of the viewport even though its far corners do not.
+    deselectAll(map);
+    camera.moveTo({0, 0, 16.5f});
+    auto mode = MarqueeSelectionMode::Brushes;
+    auto tool = SelectionTool{document, &mode};
+    const auto start = vm::vec2f{900, 340};
+    const auto end = vm::vec2f{800, 260};
+    auto inputState = InputState{start.x(), start.y()};
+    inputState.setModifierKeys(ModifierKeys::CtrlCmd);
+    inputState.mouseDown(MouseButtons::Middle);
+    inputState.setPickRequest({vm::ray3d{camera.pickRay(start.x(), start.y())}, camera});
+    auto tracker = tool.acceptMouseDrag(inputState);
+    REQUIRE(tracker != nullptr);
+    inputState.mouseMove(end.x(), end.y(), end.x() - start.x(), end.y() - start.y());
+    tracker->end(inputState);
+    CHECK(map.selection() == mdl::makeSelection(map, {brushNode}));
   }
 }
 

@@ -526,6 +526,34 @@ bool MapViewToolBox::terrainToolActive() const
   return m_terrainTool->active();
 }
 
+MarqueeSelectionMode MapViewToolBox::marqueeSelectionMode() const
+{
+  return m_marqueeSelectionMode;
+}
+
+const MarqueeSelectionMode& MapViewToolBox::marqueeSelectionModeRef() const
+{
+  return m_marqueeSelectionMode;
+}
+
+void MapViewToolBox::setMarqueeSelectionMode(const MarqueeSelectionMode mode)
+{
+  if (mode == MarqueeSelectionMode::Vertices && !vertexToolActive())
+  {
+    if (!canToggleAnyVertexTool())
+    {
+      return;
+    }
+    toggleVertexTool();
+  }
+  else if (mode != MarqueeSelectionMode::Vertices && vertexToolActive())
+  {
+    toggleVertexTool();
+  }
+
+  m_marqueeSelectionMode = mode;
+}
+
 bool MapViewToolBox::anyModalToolActive() const
 {
   return rotateToolActive() || sweepToolActive() || scaleToolActive() || shearToolActive()
@@ -690,8 +718,14 @@ void MapViewToolBox::toolActivated(Tool&)
   updateToolPage();
 }
 
-void MapViewToolBox::toolDeactivated(Tool&)
+void MapViewToolBox::toolDeactivated(Tool& tool)
 {
+  if (
+    &tool == m_vertexTool.get()
+    && m_marqueeSelectionMode == MarqueeSelectionMode::Vertices)
+  {
+    m_marqueeSelectionMode = MarqueeSelectionMode::AllObjects;
+  }
   updateEditorContext();
   updateToolPage();
 }

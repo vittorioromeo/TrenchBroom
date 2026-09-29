@@ -20,6 +20,7 @@
 #pragma once
 
 #include "base/NotifierConnection.h"
+#include "ui/SelectionTool.h"
 #include "ui/ToolBox.h"
 
 #include "vm/vec.h"
@@ -78,6 +79,7 @@ private:
   std::unique_ptr<ControlPointTool> m_controlPointTool;
   std::unique_ptr<SplineTool> m_splineTool;
   std::unique_ptr<TerrainTool> m_terrainTool;
+  MarqueeSelectionMode m_marqueeSelectionMode = MarqueeSelectionMode::AllObjects;
 
   QWidget* m_emptyToolPage = nullptr;
   QWidget* m_rotateToolPage = nullptr;
@@ -202,6 +204,10 @@ public: // tools
   bool canToggleTerrainTool() const;
   void toggleTerrainTool();
   bool terrainToolActive() const;
+
+  MarqueeSelectionMode marqueeSelectionMode() const;
+  const MarqueeSelectionMode& marqueeSelectionModeRef() const;
+  void setMarqueeSelectionMode(MarqueeSelectionMode mode);
 
   bool anyModalToolActive() const;
 

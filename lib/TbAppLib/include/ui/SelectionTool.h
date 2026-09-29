@@ -41,13 +41,24 @@ namespace ui
 class GestureTracker;
 class MapDocument;
 
+enum class MarqueeSelectionMode
+{
+  AllObjects,
+  Brushes,
+  Entities,
+  Patches,
+  Vertices,
+};
+
 class SelectionTool : public ToolController, public Tool
 {
 private:
   MapDocument& m_document;
+  const MarqueeSelectionMode* m_marqueeMode;
 
 public:
-  explicit SelectionTool(MapDocument& document);
+  explicit SelectionTool(
+    MapDocument& document, const MarqueeSelectionMode* marqueeMode = nullptr);
 
   Tool& tool() override;
   const Tool& tool() const override;
