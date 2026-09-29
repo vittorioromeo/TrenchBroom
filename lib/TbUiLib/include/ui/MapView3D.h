@@ -19,7 +19,7 @@
 
 #pragma once
 
-#include "NotifierConnection.h"
+#include "base/NotifierConnection.h"
 #include "ui/MapViewBase.h"
 
 #include <filesystem>
@@ -65,6 +65,8 @@ private:
 public:
   MapView3D(AppController& appController, MapDocument& document, MapViewToolBox& toolBox);
   ~MapView3D() override;
+
+  const gl::PerspectiveCamera& perspectiveCamera() const;
 
 private:
   void initializeCamera();

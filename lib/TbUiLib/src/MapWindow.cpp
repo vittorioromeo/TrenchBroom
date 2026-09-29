@@ -39,8 +39,7 @@
 #include <QVBoxLayout>
 #include <QtGlobal>
 
-#include "PreferenceManager.h"
-#include "Preferences.h"
+#include "base/PreferenceManager.h"
 #include "gl/GlManager.h"
 #include "gl/ResourceManager.h"
 #include "mdl/Autosaver.h"
@@ -74,6 +73,7 @@
 #include "mdl/PatchNode.h"
 #include "mdl/VisualEffect.h"
 #include "mdl/WorldNode.h"
+#include "prefs/Preferences.h"
 #include "ui/Action.h"
 #include "ui/ActionBuilder.h"
 #include "ui/ActionExecutionContext.h"
@@ -1105,8 +1105,12 @@ bool MapWindow::exportDocumentAsMap()
     return false;
   }
 
-  const auto options =
-    mdl::MapExportOptions{pathFromQString(newFileName), !K(stripTbProperties)};
+  const auto options = mdl::MapExportOptions{
+    pathFromQString(newFileName),
+    !K(stripTbProperties),
+    std::nullopt,
+    std::nullopt,
+  };
   return exportDocument(options);
 }
 
@@ -1891,9 +1895,9 @@ void MapWindow::toggleAlignmentLock()
   togglePref(Preferences::AlignmentLock);
 }
 
-void MapWindow::toggleUVLock()
+void MapWindow::toggleUvLock()
 {
-  togglePref(Preferences::UVLock);
+  togglePref(Preferences::UvLock);
 }
 
 void MapWindow::toggleShowGrid()
@@ -2094,7 +2098,10 @@ void MapWindow::showCompileDialog()
 {
   if (!m_compilationDialog)
   {
-    m_compilationDialog = new CompilationDialog{m_appController, *m_document, this};
+    const auto& camera = m_mapView->perspectiveCamera();
+
+    m_compilationDialog =
+      new CompilationDialog{m_appController, *m_document, camera, this};
     connect(
       m_compilationDialog,
       &CompilationDialog::compilationProfileStarted,

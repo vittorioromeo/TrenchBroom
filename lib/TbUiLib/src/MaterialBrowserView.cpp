@@ -24,13 +24,13 @@
 #include <QMenu>
 #include <QTextStream>
 
-#include "PreferenceManager.h"
-#include "Preferences.h"
+#include "base/PreferenceManager.h"
 #include "gl/ActiveShader.h"
 #include "gl/FontManager.h"
 #include "gl/Material.h"
 #include "gl/MaterialCollection.h"
 #include "gl/MaterialManager.h"
+#include "gl/MaterialRenderFunc.h"
 #include "gl/PrimType.h"
 #include "gl/ResourceId.h"
 #include "gl/Shaders.h"
@@ -41,12 +41,14 @@
 #include "mdl/Map.h"
 #include "mdl/Map_Assets.h"
 #include "mdl/Map_Selection.h"
+#include "prefs/Preferences.h"
 #include "render/Transformation.h"
 #include "ui/MapDocument.h"
 
 #include "kd/contracts.h"
 #include "kd/ranges/to.h"
 #include "kd/string_compare.h"
+#include "kd/string_compare_natural.h"
 #include "kd/string_utils.h"
 #include "kd/vector_utils.h"
 
@@ -275,7 +277,7 @@ std::vector<const gl::Material*> MaterialBrowserView::sortMaterials(
   std::vector<const gl::Material*> materials) const
 {
   const auto compareNames = [](const auto& lhs, const auto& rhs) {
-    return kdl::ci::string_less{}(lhs->name(), rhs->name());
+    return kdl::ci::string_less_natural{}(lhs->name(), rhs->name());
   };
 
   switch (m_sortOrder)
@@ -388,7 +390,7 @@ const Color& MaterialBrowserView::materialColor(const gl::Material& material) co
 void MaterialBrowserView::renderMaterials(
   gl::Gl& gl, Layout& layout, const float y, const float height)
 {
-  using Vertex = gl::VertexTypes::P2UV2::Vertex;
+  using Vertex = gl::VertexTypes::P2Uv2::Vertex;
 
   auto shader = gl::ActiveShader{gl, shaderManager(), gl::Shaders::MaterialBrowserShader};
   shader.set("ApplyTinting", false);
@@ -415,6 +417,7 @@ void MaterialBrowserView::renderMaterials(
               Vertex{{bounds.right(), height - (bounds.top() - y)}, {1, 0}},
             });
 
+            gl::setAlphaFuncUniforms(shader, &material);
             material.activate(
               gl,
               pref(Preferences::TextureMinFilter),

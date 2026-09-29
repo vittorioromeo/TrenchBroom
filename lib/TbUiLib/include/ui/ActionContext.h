@@ -38,18 +38,19 @@ constexpr Type ScaleTool = 1u << 6u;
 constexpr Type ShearTool = 1u << 7u;
 constexpr Type AnyVertexTool = 1u << 8u;
 constexpr Type ControlPointTool = 1u << 9u;
-constexpr Type SplineTool = 1u << 13u;
-constexpr Type TerrainTool = 1u << 14u;
+constexpr Type SweepTool = 1u << 10u;
+constexpr Type NoSelection = 1u << 11u;
+constexpr Type NodeSelection = 1u << 12u;
+constexpr Type FaceSelection = 1u << 13u;
+constexpr Type SelectionOwnedByTool = 1u << 14u;
+constexpr Type SplineTool = 1u << 15u;
+constexpr Type TerrainTool = 1u << 16u;
 constexpr Type AnyNodeHandleTool = AnyVertexTool | ControlPointTool;
 constexpr Type AnyTool = AnyNodeHandleTool | AssembleBrushTool | ClipTool | RotateTool
-                         | ScaleTool | ShearTool | SplineTool
-                         | TerrainTool;
+                         | ScaleTool | ShearTool | SweepTool | SplineTool | TerrainTool;
 constexpr Type AnyOrNoTool = AnyTool | NoTool;
-constexpr Type NoSelection = 1u << 10u;
-constexpr Type NodeSelection = 1u << 11u;
-constexpr Type FaceSelection = 1u << 12u;
 constexpr Type AnySelection = NodeSelection | FaceSelection;
-constexpr Type AnyOrNoSelection = AnySelection | NoSelection;
+constexpr Type AnyOrNoSelection = AnySelection | NoSelection | SelectionOwnedByTool;
 constexpr Type Any = AnyView | AnyOrNoSelection | AnyOrNoTool;
 constexpr Type FlyMode = View3D | AnyOrNoTool | AnyOrNoSelection;
 } // namespace ActionContext

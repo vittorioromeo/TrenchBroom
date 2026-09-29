@@ -21,12 +21,13 @@
 
 #include "gl/Material.h"
 #include "mdl/BrushFace.h"
+#include "mdl/BrushGeometry.h"
 #include "mdl/BrushNode.h"
 #include "mdl/ExportOptions.h"
 #include "mdl/PatchNode.h"
-#include "mdl/Polyhedron.h"
 
 #include "kd/contracts.h"
+#include "kd/flat_map.h"
 #include "kd/overload.h"
 
 #include <fmt/format.h>
@@ -110,7 +111,7 @@ static void writeMtlFile(
   const std::vector<ObjSerializer::Object>& objects,
   const ObjExportOptions& options)
 {
-  auto usedMaterials = std::map<std::string, const gl::Material*>{};
+  auto usedMaterials = kdl::flat_map<std::string, const gl::Material*>{};
 
   for (const auto& object : objects)
   {
@@ -164,7 +165,7 @@ static void writeVertices(std::ostream& str, const std::vector<vm::vec3d>& verti
   }
 }
 
-static void writeUVCoords(std::ostream& str, const std::vector<vm::vec2f>& uvCoords)
+static void writeUvCoords(std::ostream& str, const std::vector<vm::vec2f>& uvCoords)
 {
   str << "# texture coordinates\n";
   for (const auto& elem : uvCoords)
@@ -203,7 +204,7 @@ static void writeObjFile(
   str << "mtllib " << mtlFilename << "\n";
   writeVertices(str, vertices);
   str << "\n";
-  writeUVCoords(str, uvCoords);
+  writeUvCoords(str, uvCoords);
   str << "\n";
   writeNormals(str, normals);
   str << "\n";
@@ -269,7 +270,7 @@ void ObjSerializer::doBrushFace(const BrushFace& face)
 
   m_currentBrush->faces.push_back(BrushFaceInfo{
     std::move(indexedVertices),
-    face.attributes().materialName(),
+    face.materialName(),
     face.material(),
   });
 }

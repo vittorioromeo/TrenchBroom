@@ -59,7 +59,8 @@ textures/liquids/lavahell2 //path and name of new texture
         "",                                // lightImage
         mdl::Quake3Shader::Culling::Front, // culling
         {},                                // surfaceParms
-        {}                                 // stages
+        {},                                // stages
+        {}                                 // qerAlphaFunc
       }}));
   }
 
@@ -108,8 +109,10 @@ textures/liquids/lavahell2 //path and name of new texture
         {"noimpact", "lava", "nolightmap"}, // surfaceParms
         {{
           "textures/eerie/lavahell.tga", // map
-          {"", ""}                       // blendFunc
-        }} // stages
+          {"", ""},                      // blendFunc
+          {}                             // alphaFunc
+        }},                              // stages
+        {}                               // qerAlphaFunc
       }}));
   }
 
@@ -159,8 +162,10 @@ textures/liquids/lavahell2 //path and name of new texture
         {"noimpact", "lava", "nolightmap"}, // surfaceParms
         {{
           "textures/eerie/lavahell.tga", // map
-          {"", ""}                       // blendFunc
-        }} // stages
+          {"", ""},                      // blendFunc
+          {}                             // alphaFunc
+        }},                              // stages
+        {}                               // qerAlphaFunc
       }}));
   }
 
@@ -210,16 +215,20 @@ textures/eerie/ironcrosslt2_10000
         {},                                             // surfaceParms
         {{
            "$lightmap", // map
-           {"", ""}     // blendFunc
+           {"", ""},    // blendFunc
+           {}           // alphaFunc
          },
          {
            "textures/gothic_light/ironcrosslt2.tga", // map
-           {"GL_DST_COLOR", "GL_ZERO"}               // blendFunc
+           {"GL_DST_COLOR", "GL_ZERO"},              // blendFunc
+           {}                                        // alphaFunc
          },
          {
            "textures/gothic_light/ironcrosslt2.blend.tga", // map
-           {"GL_ONE", "GL_ONE"}                            // blendFunc
-         }} // stages
+           {"GL_ONE", "GL_ONE"},                           // blendFunc
+           {}                                              // alphaFunc
+         }},                                               // stages
+        {}                                                 // qerAlphaFunc
       }}));
   }
 
@@ -269,16 +278,20 @@ textures/eerie/ironcrosslt2_10000
         {},                                             // surfaceParms
         {{
            "$lightmap", // map
-           {"", ""}     // blendFunc
+           {"", ""},    // blendFunc
+           {}           // alphaFunc
          },
          {
            "textures/gothic_light/ironcrosslt2.tga", // map
-           {"GL_DST_COLOR", "GL_ZERO"}               // blendFunc
+           {"GL_DST_COLOR", "GL_ZERO"},              // blendFunc
+           {}                                        // alphaFunc
          },
          {
            "textures/gothic_light/ironcrosslt2.blend.tga", // map
-           {"GL_ONE", "GL_ONE"}                            // blendFunc
-         }} // stages
+           {"GL_ONE", "GL_ONE"},                           // blendFunc
+           {}                                              // alphaFunc
+         }},                                               // stages
+        {}                                                 // qerAlphaFunc
       }}));
   }
 
@@ -306,8 +319,10 @@ textures\eerie\ironcrosslt2_10000
         {},                                             // surfaceParms
         {{
           "textures/gothic_light/ironcrosslt2.blend.tga", // map
-          {"", ""}                                        // blendFunc
-        }} // stages
+          {"", ""},                                       // blendFunc
+          {}                                              // alphaFunc
+        }},                                               // stages
+        {}                                                // qerAlphaFunc
       }}}));
   }
 
@@ -414,16 +429,20 @@ textures/liquids/lavahell2 //path and name of new texture
           {},                                             // surfaceParms
           {{
              "$lightmap", // map
-             {"", ""}     // blendFunc
+             {"", ""},    // blendFunc
+             {}           // alphaFunc
            },
            {
              "textures/gothic_light/ironcrosslt2.tga", // map
-             {"GL_DST_COLOR", "GL_ZERO"}               // blendFunc
+             {"GL_DST_COLOR", "GL_ZERO"},              // blendFunc
+             {}                                        // alphaFunc
            },
            {
              "textures/gothic_light/ironcrosslt2.blend.tga", // map
-             {"GL_ONE", "GL_ONE"}                            // blendFunc
-           }} // stages
+             {"GL_ONE", "GL_ONE"},                           // blendFunc
+             {}                                              // alphaFunc
+           }},                                               // stages
+          {}                                                 // qerAlphaFunc
         },
         {
           "textures/liquids/lavahell2",       // shaderPath
@@ -433,8 +452,10 @@ textures/liquids/lavahell2 //path and name of new texture
           {"noimpact", "lava", "nolightmap"}, // surfaceParms
           {{
             "textures/eerie/lavahell.tga", // map
-            {"", ""}                       // blendFunc
-          }} // stages
+            {"", ""},                      // blendFunc
+            {}                             // alphaFunc
+          }},                              // stages
+          {}                               // qerAlphaFunc
         }}));
   }
 
@@ -537,81 +558,148 @@ waterBubble
         {
           {
             "sprites/bubble.tga", // map
-            {BF::One, BF::One}    // blendFunc
+            {BF::One, BF::One},   // blendFunc
+            {}                    // alphaFunc
           },
           {
-            "sprites/bubble.tga",     // map
-            {BF::DestColor, BF::Zero} // blendFunc
+            "sprites/bubble.tga",      // map
+            {BF::DestColor, BF::Zero}, // blendFunc
+            {}                         // alphaFunc
           },
           {
-            "sprites/bubble.tga",                // map
-            {BF::SrcAlpha, BF::OneMinusSrcAlpha} // blendFunc
+            "sprites/bubble.tga",                 // map
+            {BF::SrcAlpha, BF::OneMinusSrcAlpha}, // blendFunc
+            {}                                    // alphaFunc
           },
           {
             "sprites/bubble.tga", // map
-            {BF::One, BF::One}    // blendFunc
+            {BF::One, BF::One},   // blendFunc
+            {}                    // alphaFunc
           },
           {
             "sprites/bubble.tga", // map
-            {BF::Zero, BF::Zero}  // blendFunc
+            {BF::Zero, BF::Zero}, // blendFunc
+            {}                    // alphaFunc
           },
           {
-            "sprites/bubble.tga",         // map
-            {BF::DestColor, BF::SrcAlpha} // blendFunc
+            "sprites/bubble.tga",          // map
+            {BF::DestColor, BF::SrcAlpha}, // blendFunc
+            {}                             // alphaFunc
+          },
+          {
+            "sprites/bubble.tga",                          // map
+            {BF::OneMinusDestColor, BF::OneMinusSrcAlpha}, // blendFunc
+            {}                                             // alphaFunc
+          },
+          {
+            "sprites/bubble.tga",          // map
+            {BF::SrcAlpha, BF::DestAlpha}, // blendFunc
+            {}                             // alphaFunc
+          },
+          {
+            "sprites/bubble.tga",                          // map
+            {BF::OneMinusSrcAlpha, BF::OneMinusDestAlpha}, // blendFunc
+            {}                                             // alphaFunc
+          },
+          {
+            "sprites/bubble.tga",          // map
+            {BF::DestAlpha, BF::SrcColor}, // blendFunc
+            {}                             // alphaFunc
+          },
+          {
+            "sprites/bubble.tga",                          // map
+            {BF::OneMinusDestAlpha, BF::OneMinusSrcColor}, // blendFunc
+            {}                                             // alphaFunc
           },
           {
             "sprites/bubble.tga",                         // map
-            {BF::OneMinusDestColor, BF::OneMinusSrcAlpha} // blendFunc
+            {BF::SrcAlphaSaturate, BF::OneMinusSrcColor}, // blendFunc
+            {}                                            // alphaFunc
           },
-          {
-            "sprites/bubble.tga",         // map
-            {BF::SrcAlpha, BF::DestAlpha} // blendFunc
-          },
-          {
-            "sprites/bubble.tga",                         // map
-            {BF::OneMinusSrcAlpha, BF::OneMinusDestAlpha} // blendFunc
-          },
-          {
-            "sprites/bubble.tga",         // map
-            {BF::DestAlpha, BF::SrcColor} // blendFunc
-          },
-          {
-            "sprites/bubble.tga",                         // map
-            {BF::OneMinusDestAlpha, BF::OneMinusSrcColor} // blendFunc
-          },
-          {
-            "sprites/bubble.tga",                        // map
-            {BF::SrcAlphaSaturate, BF::OneMinusSrcColor} // blendFunc
-          },
-        } // stages
+        }, // stages
+        {} // qerAlphaFunc
       }}));
   }
-}
 
-TEST_CASE("Quake3ShaderParser (Regression)", "[regression]")
-{
-  auto status = TestParserStatus{};
-
-  SECTION("2537")
+  SECTION("Parse alphaFunc and qer_alphaFunc")
   {
-    // see https://github.com/TrenchBroom/TrenchBroom/issues/2537
-    // The file contains a carriage return without a consecutive line feed, which tripped
-    // the parser.
+    const auto data = R"(
+            treeSprite
+            {
+                qer_alphaFunc gequal 0.25
+                {
+                    map textures/trees/sprite_tree1.tga
+                    alphaFunc GT0
+                }
+            }
 
-    auto fs = fs::DiskFileSystem{getFixtureRoot() / "test/mdl/Quake3ShaderParser"};
-    auto testFile = fs.openFile("am_cf_models.shader") | kdl::value();
-    auto reader = testFile->reader().buffer();
+            )";
 
-    auto parser = Quake3ShaderParser{reader.stringView()};
-    CHECK_NOTHROW(parser.parse(status));
+    using BF = mdl::Quake3ShaderStage::BlendFunc;
+
+    auto parser = Quake3ShaderParser{data};
+
+    CHECK_THAT(
+      parser.parse(status).value(),
+      UnorderedEquals(std::vector<mdl::Quake3Shader>{{
+        "treeSprite",                      // shaderPath
+        "",                                // editorImage
+        "",                                // lightImage
+        mdl::Quake3Shader::Culling::Front, // culling
+        {},                                // surfaceParms
+        {
+          {
+            "textures/trees/sprite_tree1.tga", // map
+            BF{},                              // blendFunc
+            gl::MaterialAlphaFunc{
+              gl::MaterialAlphaFunc::Compare::Greater, 0.0f}, // alphaFunc
+          },
+        }, // stages
+        gl::MaterialAlphaFunc{
+          gl::MaterialAlphaFunc::Compare::GreaterEqual, 0.25f}, // qerAlphaFunc
+      }}));
   }
 
-  SECTION("2633")
+  SECTION("qer_alphaFunc with an unparseable threshold warns and is ignored")
   {
-    // see https://github.com/TrenchBroom/TrenchBroom/issues/2633
-    // apparently, the Q3 engine can handle this
-
     const auto data = R"(
+            treeSprite
+            {
+                qer_alphaFunc gequal .
+            }
+
+            )";
+
+    auto parser = Quake3ShaderParser{data};
+
+    const auto shaders = parser.parse(status).value();
+    REQUIRE(shaders.size() == 1u);
+    CHECK(shaders.front().qerAlphaFunc == std::nullopt);
+    CHECK(status.countStatus(LogLevel::Warn) == 1u);
+  }
+
+  SECTION("Regression tests")
+  {
+    SECTION("2537")
+    {
+      // see https://github.com/TrenchBroom/TrenchBroom/issues/2537
+      // The file contains a carriage return without a consecutive line feed, which
+      // tripped the parser.
+
+      auto fs = fs::DiskFileSystem{getFixtureRoot() / "test/mdl/Quake3ShaderParser"};
+      auto testFile = fs.openFile("am_cf_models.shader") | kdl::value();
+      auto reader = testFile->reader().buffer();
+
+      auto parser = Quake3ShaderParser{reader.stringView()};
+      CHECK_NOTHROW(parser.parse(status));
+    }
+
+    SECTION("2633")
+    {
+      // see https://github.com/TrenchBroom/TrenchBroom/issues/2633
+      // apparently, the Q3 engine can handle this
+
+      const auto data = R"(
 /textures/eerie/ironcrosslt2_10000
 {
     qer_editorimage textures/gothic_light/ironcrosslt2.tga
@@ -620,26 +708,27 @@ TEST_CASE("Quake3ShaderParser (Regression)", "[regression]")
 
 })";
 
-    auto parser = Quake3ShaderParser{data};
+      auto parser = Quake3ShaderParser{data};
 
-    CHECK_THAT(
-      parser.parse(status).value(),
-      UnorderedEquals(std::vector<mdl::Quake3Shader>{{
-        "textures/eerie/ironcrosslt2_10000",      // shaderPath
-        "textures/gothic_light/ironcrosslt2.tga", // editorImage
-        "",                                       // lightImage
-        mdl::Quake3Shader::Culling::Front,        // culling
-        {},                                       // surfaceParms
-        {}                                        // stages
-      }}));
-  }
+      CHECK_THAT(
+        parser.parse(status).value(),
+        UnorderedEquals(std::vector<mdl::Quake3Shader>{{
+          "textures/eerie/ironcrosslt2_10000",      // shaderPath
+          "textures/gothic_light/ironcrosslt2.tga", // editorImage
+          "",                                       // lightImage
+          mdl::Quake3Shader::Culling::Front,        // culling
+          {},                                       // surfaceParms
+          {},                                       // stages
+          {}                                        // qerAlphaFunc
+        }}));
+    }
 
-  SECTION("2663")
-  {
-    // see https://github.com/TrenchBroom/TrenchBroom/issues/2663
-    // Quake 3 allows this, too.
+    SECTION("2663")
+    {
+      // see https://github.com/TrenchBroom/TrenchBroom/issues/2663
+      // Quake 3 allows this, too.
 
-    const std::string data(R"(
+      const std::string data(R"(
 textures/evil3_floors/t-flr_oddtile_drty
 {
         {
@@ -655,8 +744,9 @@ textures/evil3_floors/cemtiledrk_mhbrk
 }
 )");
 
-    auto parser = Quake3ShaderParser{data};
-    CHECK_NOTHROW(parser.parse(status));
+      auto parser = Quake3ShaderParser{data};
+      CHECK_NOTHROW(parser.parse(status));
+    }
   }
 }
 

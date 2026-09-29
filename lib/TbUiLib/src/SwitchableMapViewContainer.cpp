@@ -21,10 +21,10 @@
 
 #include <QGridLayout>
 
-#include "PreferenceManager.h"
-#include "Preferences.h"
+#include "base/PreferenceManager.h"
 #include "mdl/Map.h"
 #include "mdl/PointTrace.h"
+#include "prefs/Preferences.h"
 #include "ui/FourPaneMapView.h"
 #include "ui/Inspector.h"
 #include "ui/MapDocument.h"
@@ -166,6 +166,11 @@ void SwitchableMapViewContainer::moveCameraToPreviousTracePoint()
     pointTrace->retreat();
     m_mapView->moveCameraToCurrentTracePoint();
   }
+}
+
+const gl::PerspectiveCamera& SwitchableMapViewContainer::perspectiveCamera() const
+{
+  return m_mapView->perspectiveCamera();
 }
 
 bool SwitchableMapViewContainer::canMaximizeCurrentView() const

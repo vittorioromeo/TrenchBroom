@@ -1,6 +1,9 @@
 # Using target_link_library to link an object library to qt requires 3.12
 # 3.14 is required for generator expressions in install(CODE)
-cmake_minimum_required(VERSION 3.25)
+# 3.28 is required for FetchContent_Declare's EXCLUDE_FROM_ALL option, used in
+# cmake/dependencies/ to keep fetched dependencies' own install() rules out of
+# the packaged build.
+cmake_minimum_required(VERSION 3.28)
 
 # Fix warning with Ninja and cotire (see https://github.com/sakra/cotire/issues/81)
 if(POLICY CMP0058)
@@ -16,9 +19,6 @@ if(POLICY CMP0063)
   cmake_policy(SET CMP0063 NEW)
 endif()
 
-set(CMAKE_TOOLCHAIN_FILE "${CMAKE_SOURCE_DIR}/vcpkg/scripts/buildsystems/vcpkg.cmake")
-set(VCPKG_OVERLAY_PORTS "${CMAKE_SOURCE_DIR}/vcpkg-overlay-ports/freeimage;${CMAKE_SOURCE_DIR}/vcpkg-overlay-ports/openexr")
-
 set(CMAKE_C_VISIBILITY_PRESET hidden)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 set(CMAKE_VISIBILITY_INLINES_HIDDEN TRUE)
@@ -32,6 +32,11 @@ set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT T
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
+# TrenchBroom doesn't use C++20 modules. With Ninja and a scanning-capable compiler,
+# CMake defaults this to ON for C++20+, adding a "Scanning ... for CXX dependencies"
+# compiler invocation per translation unit that ccache cannot cache.
+set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
 project(TrenchBroom C CXX)
 
@@ -67,7 +72,15 @@ else()
   message(FATAL_ERROR "Unsupported compiler detected.")
 endif()
 
+# Templates for embedding a Windows manifest that sets the process active code page to
+# UTF-8 (see cmake/Utils.cmake's CONFIGURE_UTF8_MANIFEST/EMBED_UTF8_MANIFEST functions).
+if(WIN32)
+  set(TB_UTF8_MANIFEST_TEMPLATE "${CMAKE_SOURCE_DIR}/cmake/Utf8CodePage.manifest.in")
+  set(TB_UTF8_RC_TEMPLATE "${CMAKE_SOURCE_DIR}/cmake/Utf8CodePage.rc.in")
+endif()
+
 include(cmake/Utils.cmake)
+include(cmake/Sanitizers.cmake)
 include(cmake/CompilerConfig.cmake)
 include(cmake/PrecompileHeaders.cmake)
 
@@ -99,35 +112,8 @@ set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 # Prevent gtest from being installed
 set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 
-find_package(assimp CONFIG REQUIRED)
-find_package(cpptrace CONFIG REQUIRED)
-find_package(freeimage CONFIG REQUIRED)
-find_package(freetype CONFIG REQUIRED)
-find_package(Catch2 CONFIG REQUIRED)
-find_package(ctre CONFIG REQUIRED)
-find_package(fmt CONFIG REQUIRED)
-find_package(miniz CONFIG REQUIRED)
-find_package(tinyxml2 CONFIG REQUIRED)
-find_package(stduuid REQUIRED)
-
-# Find Qt and OpenGL
-find_package(OpenGL REQUIRED)
-find_package(Qt6 COMPONENTS Core Widgets OpenGL OpenGLWidgets Network Svg Test REQUIRED)
-
-if(DEFINED Qt6_DIR)
-  get_filename_component(TB_QT_LIBRARY_DIR "${Qt6_DIR}/../.." ABSOLUTE)
-  message(STATUS "Found Qt6: ${TB_QT_LIBRARY_DIR}")
-endif()
-
-# Find threads lib, needed to work around a gtest bug, see: https://stackoverflow.com/questions/21116622/undefined-reference-to-pthread-key-create-linker-error
-# The googletest target links to this
-find_package(Threads)
-
-# Use the fast-float library for from_chars on AppleClang, where std::from_chars is not
-# available for floating point types.
-if (CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
-find_package(FastFloat CONFIG REQUIRED)
-endif()
+include(cmake/Dependencies.cmake)
+include(cmake/Lto.cmake)
 
 # Populate version variables using git
 get_git_describe("${GIT_EXECUTABLE}" "${CMAKE_SOURCE_DIR}" GIT_DESCRIBE)

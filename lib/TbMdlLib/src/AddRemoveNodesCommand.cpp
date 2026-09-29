@@ -19,7 +19,7 @@
 
 #include "mdl/AddRemoveNodesCommand.h"
 
-#include "Macros.h"
+#include "base/Macros.h"
 #include "mdl/AddRemoveNodesUtils.h"
 #include "mdl/Map.h"
 #include "mdl/Node.h"
@@ -30,13 +30,13 @@ namespace tb::mdl
 {
 
 std::unique_ptr<AddRemoveNodesCommand> AddRemoveNodesCommand::add(
-  const std::map<Node*, std::vector<Node*>>& nodes)
+  const kdl::flat_map<Node*, std::vector<Node*>>& nodes)
 {
   return std::make_unique<AddRemoveNodesCommand>(Action::Add, nodes);
 }
 
 std::unique_ptr<AddRemoveNodesCommand> AddRemoveNodesCommand::remove(
-  const std::map<Node*, std::vector<Node*>>& nodes)
+  const kdl::flat_map<Node*, std::vector<Node*>>& nodes)
 {
   return std::make_unique<AddRemoveNodesCommand>(Action::Remove, nodes);
 }
@@ -47,7 +47,7 @@ AddRemoveNodesCommand::~AddRemoveNodesCommand()
 }
 
 AddRemoveNodesCommand::AddRemoveNodesCommand(
-  const Action action, const std::map<Node*, std::vector<Node*>>& nodes)
+  const Action action, const kdl::flat_map<Node*, std::vector<Node*>>& nodes)
   : UpdateLinkedGroupsCommandBase{makeName(action), true}
   , m_action{action}
 {

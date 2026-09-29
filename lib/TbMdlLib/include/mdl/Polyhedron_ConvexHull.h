@@ -19,7 +19,7 @@
 
 #pragma once
 
-#include "Macros.h"
+#include "base/Macros.h"
 #include "mdl/Polyhedron.h"
 
 #include "kd/contracts.h"
@@ -43,9 +43,10 @@ namespace detail
 template <typename T>
 T computePlaneEpsilon(const std::vector<vm::vec<T, 3>>& points)
 {
-  auto builder = typename vm::bbox<T, 3>::builder{};
-  builder.add(points.begin(), points.end());
-  const auto size = builder.bounds().size();
+  contract_pre(!points.empty());
+
+  const auto bounds = vm::bbox<T, 3>::build(points);
+  const auto size = bounds->size();
 
   const auto defaultEpsilon = vm::constants<T>::point_status_epsilon();
   const auto computedEpsilon =
@@ -117,7 +118,7 @@ typename Polyhedron<T, FP, VP>::Vertex* Polyhedron<T, FP, VP>::addFirstPoint(
 {
   contract_pre(empty());
 
-  auto* newVertex = new Vertex{position};
+  auto* newVertex = &m_vertexPool.emplace(position);
   m_vertices.push_back(newVertex);
   return newVertex;
 }
@@ -131,12 +132,12 @@ typename Polyhedron<T, FP, VP>::Vertex* Polyhedron<T, FP, VP>::addSecondPoint(
   auto* onlyVertex = *m_vertices.begin();
   if (position != onlyVertex->position())
   {
-    auto* newVertex = new Vertex{position};
+    auto* newVertex = &m_vertexPool.emplace(position);
     m_vertices.push_back(newVertex);
 
-    auto* halfEdge1 = new HalfEdge{onlyVertex};
-    auto* halfEdge2 = new HalfEdge{newVertex};
-    auto* edge = new Edge{halfEdge1, halfEdge2};
+    auto* halfEdge1 = &m_halfEdgePool.emplace(onlyVertex);
+    auto* halfEdge2 = &m_halfEdgePool.emplace(newVertex);
+    auto* edge = &m_edgePool.emplace(halfEdge1, halfEdge2);
     m_edges.push_back(edge);
     return newVertex;
   }
@@ -205,8 +206,8 @@ typename Polyhedron<T, FP, VP>::Vertex* Polyhedron<T, FP, VP>::addNonColinearThi
 
   if (const auto plane = vm::from_points(v2->position(), v1->position(), position))
   {
-    auto* v3 = new Vertex{position};
-    auto* h3 = new HalfEdge{v3};
+    auto* v3 = &m_vertexPool.emplace(position);
+    auto* h3 = &m_halfEdgePool.emplace(v3);
 
     auto* e1 = m_edges.front();
     e1->makeFirstEdge(h1);
@@ -217,10 +218,10 @@ typename Polyhedron<T, FP, VP>::Vertex* Polyhedron<T, FP, VP>::addNonColinearThi
     boundary.push_back(h2);
     boundary.push_back(h3);
 
-    auto* face = new Face{std::move(boundary), *plane};
+    auto* face = &m_facePool.emplace(std::move(boundary), *plane);
 
-    auto* e2 = new Edge{h2};
-    auto* e3 = new Edge{h3};
+    auto* e2 = &m_edgePool.emplace(h2);
+    auto* e3 = &m_edgePool.emplace(h3);
 
     m_vertices.push_back(v3);
     m_edges.push_back(e2);
@@ -319,9 +320,9 @@ typename Polyhedron<T, FP, VP>::Vertex* Polyhedron<T, FP, VP>::addPointToPolygon
 
   // Now we know which edges are visible from the point. These will have to be replaced
   // with two new edges.
-  auto* newVertex = new Vertex{position};
-  auto* h1 = new HalfEdge{firstVisibleEdge->origin()};
-  auto* h2 = new HalfEdge{newVertex};
+  auto* newVertex = &m_vertexPool.emplace(position);
+  auto* h1 = &m_halfEdgePool.emplace(firstVisibleEdge->origin());
+  auto* h2 = &m_halfEdgePool.emplace(newVertex);
 
   face->insertIntoBoundaryAfter(lastVisibleEdge, HalfEdgeList{h1});
   face->insertIntoBoundaryAfter(h1, HalfEdgeList{h2});
@@ -329,22 +330,22 @@ typename Polyhedron<T, FP, VP>::Vertex* Polyhedron<T, FP, VP>::addPointToPolygon
 
   h1->setAsLeaving();
 
-  auto* e1 = new Edge{h1};
-  auto* e2 = new Edge{h2};
+  auto* e1 = &m_edgePool.emplace(h1);
+  auto* e2 = &m_edgePool.emplace(h2);
 
   // delete the visible vertices and edges.
-  // the visible half edges are deleted when visibleEdges goes out of scope
   for (auto* curEdge : visibleEdges)
   {
     auto* edge = curEdge->edge();
-    m_edges.remove(edge);
+    eraseEdge(edge);
 
     if (curEdge != visibleEdges.front())
     {
       auto* vertex = curEdge->origin();
-      m_vertices.remove(vertex);
+      eraseVertex(vertex);
     }
   }
+  eraseHalfEdges(visibleEdges);
 
   m_edges.push_back(e1);
   m_edges.push_back(e2);
@@ -392,10 +393,7 @@ typename Polyhedron<T, FP, VP>::Vertex* Polyhedron<T, FP, VP>::
   auto seam = createSeamForHorizon(position, planeEpsilon);
 
   // If no correct seam could be created, we assume that the vertex was inside the
-  // polyhedron. If the seam has multiple loops, this indicates that the point to be added
-  // is very close to another vertex and no correct seam can be computed due to
-  // imprecision. In that case, we just assume that the vertex is inside the polyhedron
-  // and skip it.
+  // polyhedron and skip it.
   if (!seam || seam->empty())
   {
     return nullptr;
@@ -404,8 +402,10 @@ typename Polyhedron<T, FP, VP>::Vertex* Polyhedron<T, FP, VP>::
   contract_assert(seam->size() >= 3);
 
   // Under certain circumstances, it is not possible to weave a cap onto the seam because
-  // it would create a face with colinear points. In this case, we assume the vertex was
-  // inside the polyhedron and skip it.
+  // it would create a face with colinear points, or because the seam has multiple loops.
+  // A seam with multiple loops indicates that the point to be added is very close to
+  // another vertex and no correct seam could be computed due to imprecision. In either
+  // case, we assume the vertex was inside the polyhedron and skip it.
   if (!checkSeamForWeaving(*seam, position))
   {
     return nullptr;
@@ -442,18 +442,26 @@ public:
    * Appends the given edge to the end of this seam.
    *
    * If this seam is not empty, then the given edge must not be identical to the last edge
-   * of this seam, and its first vertex must be identical to the last edge's second
-   * vertex.
+   * of this seam.
+   *
+   * Furthermore, its first vertex must be identical to the last edge's second vertex,
+   * otherwise it will be ignored and this function will return false.
    *
    * @param edge the edge to append, must not be null
+   * @return true if the edge could be appended, false otherwise
    */
-  void push_back(Edge* edge)
+  bool push_back(Edge* edge)
   {
     contract_pre(edge != nullptr);
     contract_pre(empty() || edge != last());
-    contract_pre(checkEdge(edge));
 
-    m_edges.push_back(edge);
+    if (checkEdge(edge))
+    {
+      m_edges.push_back(edge);
+      return true;
+    }
+
+    return false;
   }
 
   /**
@@ -646,14 +654,21 @@ std::optional<typename Polyhedron<T, FP, VP>::Seam> Polyhedron<T, FP, VP>::
   auto seam = Seam{};
 
   auto visitedFaces = std::unordered_set<Face*>{initialVisibleFace};
-  visitFace(
-    position, initialVisibleFace->boundary().front(), visitedFaces, seam, planeEpsilon);
+  if (!visitFace(
+        position,
+        initialVisibleFace->boundary().front(),
+        visitedFaces,
+        seam,
+        planeEpsilon))
+  {
+    return std::nullopt;
+  }
 
   return seam;
 }
 
 template <typename T, typename FP, typename VP>
-void Polyhedron<T, FP, VP>::visitFace(
+bool Polyhedron<T, FP, VP>::visitFace(
   const vm::vec<T, 3>& position,
   HalfEdge* initialBoundaryEdge,
   std::unordered_set<Face*>& visitedFaces,
@@ -669,19 +684,27 @@ void Polyhedron<T, FP, VP>::visitFace(
     {
       if (visitedFaces.insert(neighbour).second)
       {
-        visitFace(
-          position, currentBoundaryEdge->twin(), visitedFaces, seam, planeEpsilon);
+        if (!visitFace(
+              position, currentBoundaryEdge->twin(), visitedFaces, seam, planeEpsilon))
+        {
+          return false;
+        }
       }
     }
     else
     {
       auto* edge = currentBoundaryEdge->edge();
       edge->makeSecondEdge(currentBoundaryEdge);
-      seam.push_back(edge);
+      if (!seam.push_back(edge))
+      {
+        return false;
+      }
     }
 
     currentBoundaryEdge = currentBoundaryEdge->next();
   } while (currentBoundaryEdge != initialBoundaryEdge);
+
+  return true;
 }
 
 template <typename T, typename FP, typename VP>
@@ -714,15 +737,21 @@ void Polyhedron<T, FP, VP>::split(const Seam& seam)
   // recursion.
   auto visitedFaces = std::unordered_set<Face*>{};
 
-  // Will automatically delete the vertices when it falls out of scope
   auto verticesToDelete = VertexList{};
-  deleteFaces(first, visitedFaces, verticesToDelete);
+  auto facesToDelete = FaceList{};
+  deleteFaces(first, visitedFaces, verticesToDelete, facesToDelete);
+
+  eraseVertices(verticesToDelete);
+  eraseFaces(facesToDelete);
 }
 
 template <typename T, typename FP, typename VP>
 template <typename FaceSet>
 void Polyhedron<T, FP, VP>::deleteFaces(
-  HalfEdge* first, FaceSet& visitedFaces, VertexList& verticesToDelete)
+  HalfEdge* first,
+  FaceSet& visitedFaces,
+  VertexList& verticesToDelete,
+  FaceList& facesToDelete)
 {
   auto* face = first->face();
 
@@ -746,7 +775,7 @@ void Polyhedron<T, FP, VP>::deleteFaces(
       // of our callers. In that case, the call to deleteFaces returned immediately.
       if (edge->fullySpecified())
       {
-        deleteFaces(edge->twin(current), visitedFaces, verticesToDelete);
+        deleteFaces(edge->twin(current), visitedFaces, verticesToDelete, facesToDelete);
       }
 
       if (edge->fullySpecified())
@@ -763,7 +792,7 @@ void Polyhedron<T, FP, VP>::deleteFaces(
         // deleted or that it will be deleted by one of our callers. This means that we
         // can safely unset the edge and delete it.
         current->unsetEdge();
-        m_edges.remove(edge);
+        eraseEdge(edge);
       }
     }
 
@@ -777,7 +806,11 @@ void Polyhedron<T, FP, VP>::deleteFaces(
     current = current->next();
   } while (current != first);
 
-  m_faces.remove(face);
+  // Defer this face's destruction until the entire recursive walk has completed: an
+  // ancestor call may still need to query this face's edges (via edge->fullySpecified())
+  // after this call returns, so we can only detach it here, not destroy it yet.
+  facesToDelete.splice_back(
+    m_faces, FaceList::iter(face), std::next(FaceList::iter(face)), 1u);
 }
 
 template <typename T, typename FP, typename VP>
@@ -794,12 +827,12 @@ typename Polyhedron<T, FP, VP>::Face* Polyhedron<T, FP, VP>::sealWithSinglePolyg
     contract_assert(!seamEdge->fullySpecified());
 
     auto* origin = seamEdge->secondVertex();
-    auto* boundaryEdge = new HalfEdge{origin};
+    auto* boundaryEdge = &m_halfEdgePool.emplace(origin);
     boundary.push_back(boundaryEdge);
     seamEdge->setSecondEdge(boundaryEdge);
   }
 
-  auto* face = new Face{std::move(boundary), plane};
+  auto* face = &m_facePool.emplace(std::move(boundary), plane);
   m_faces.push_back(face);
   return face;
 }
@@ -810,7 +843,11 @@ bool Polyhedron<T, FP, VP>::checkSeamForWeaving(
 {
   contract_pre(seam.size() >= 3);
   contract_pre(!empty() && !point() && !edge());
-  assert(!seam.hasMultipleLoops());
+
+  if (seam.hasMultipleLoops())
+  {
+    return false;
+  }
 
   for (auto* edge : seam)
   {
@@ -838,7 +875,7 @@ std::optional<typename Polyhedron<T, FP, VP>::WeaveConeResult> Polyhedron<T, FP,
   auto faces = FaceList{};
   HalfEdge* firstSeamEdge = nullptr;
 
-  auto* top = new Vertex{position};
+  auto* top = &m_vertexPool.emplace(position);
   vertices.push_back(top);
 
   HalfEdge* first = nullptr;
@@ -849,9 +886,9 @@ std::optional<typename Polyhedron<T, FP, VP>::WeaveConeResult> Polyhedron<T, FP,
     auto* v1 = edge->secondVertex();
     auto* v2 = edge->firstVertex();
 
-    auto* h1 = new HalfEdge{top};
-    auto* h2 = new HalfEdge{v1};
-    auto* h3 = new HalfEdge{v2};
+    auto* h1 = &m_halfEdgePool.emplace(top);
+    auto* h2 = &m_halfEdgePool.emplace(v1);
+    auto* h3 = &m_halfEdgePool.emplace(v2);
     auto* h = h3;
 
     auto boundary = HalfEdgeList{};
@@ -867,14 +904,20 @@ std::optional<typename Polyhedron<T, FP, VP>::WeaveConeResult> Polyhedron<T, FP,
     const auto plane = vm::from_points(v1->position(), position, v2->position());
     if (!plane)
     {
+      // Roll back everything allocated so far, both in this iteration's not-yet-attached
+      // boundary and in the previous iterations' vertices, edges and faces.
+      eraseHalfEdges(boundary);
+      eraseVertices(vertices);
+      eraseEdges(edges);
+      eraseFaces(faces);
       return std::nullopt;
     }
 
-    faces.push_back(new Face{std::move(boundary), *plane});
+    faces.push_back(&m_facePool.emplace(std::move(boundary), *plane));
 
     if (last)
     {
-      edges.push_back(new Edge{h1, last});
+      edges.push_back(&m_edgePool.emplace(h1, last));
     }
 
     if (!first)
@@ -886,7 +929,7 @@ std::optional<typename Polyhedron<T, FP, VP>::WeaveConeResult> Polyhedron<T, FP,
   }
 
   contract_assert(first->face() != last->face());
-  edges.push_back(new Edge(first, last));
+  edges.push_back(&m_edgePool.emplace(first, last));
 
   return WeaveConeResult{
     std::move(vertices), std::move(edges), std::move(faces), firstSeamEdge};

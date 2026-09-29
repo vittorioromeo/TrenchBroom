@@ -26,8 +26,7 @@
 #include <QTimer>
 #include <QWidget>
 
-#include "PreferenceManager.h"
-#include "Preferences.h"
+#include "base/PreferenceManager.h"
 #include "gl/ActiveShader.h"
 #include "gl/GlManager.h"
 #include "gl/PrimType.h"
@@ -37,6 +36,7 @@
 #include "gl/VboManager.h"
 #include "gl/VertexArray.h"
 #include "gl/VertexType.h"
+#include "prefs/Preferences.h"
 #include "render/Transformation.h"
 #include "ui/AppController.h"
 #include "ui/GlFunctions.h"
@@ -240,6 +240,17 @@ void RenderView::render()
   clearBackground(gl);
   renderContents(gl);
   renderFocusIndicator(gl);
+
+  // Work around a Qt/Wayland bug (QTBUG-110014, QTBUG-132197, QTBUG-119214) where
+  // non-opaque alpha values left in a QOpenGLWidget's framebuffer by translucent draws
+  // cause the Wayland compositor to blend the whole window against the desktop behind it.
+  // Force the framebuffer's alpha to fully opaque after rendering so this doesn't happen
+  // regardless of the requested surface format.
+  gl.pushAttrib(GL_COLOR_BUFFER_BIT);
+  gl.colorMask(false, false, false, true);
+  gl.clearColor(0.0f, 0.0f, 0.0f, 1.0f);
+  gl.clear(GL_COLOR_BUFFER_BIT);
+  gl.popAttrib();
 }
 
 void RenderView::processInput()

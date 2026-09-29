@@ -32,14 +32,18 @@
 #include "mdl/Map_Brushes.h"
 #include "mdl/Map_Entities.h"
 #include "mdl/Map_Nodes.h"
+#include "mdl/Map_Patches.h"
 #include "mdl/Map_Selection.h"
+#include "mdl/PatchNode.h"
 #include "mdl/Selection.h"
 #include "mdl/UpdateBrushFaceAttributes.h"
 #include "mdl/WorldNode.h" // IWYU pragma: keep
 
 #include "kd/contracts.h"
+#include "kd/flat_set.h"
 #include "kd/ranges/to.h"
 #include "kd/string_compare.h"
+#include "kd/string_compare_natural.h"
 #include "kd/struct_io.h"
 
 #include <algorithm>
@@ -84,20 +88,32 @@ public:
   }
 };
 
-class BrushMatchVisitor : public MatchVisitor
+/**
+ * Matches brush and patch nodes based on the entity that owns them (or the world node,
+ * if they aren't owned by an entity).
+ */
+class EntityOwnerMatchVisitor : public MatchVisitor
 {
 private:
-  std::function<bool(const BrushNode&)> m_matcher;
+  std::function<bool(const EntityNodeBase*)> m_matcher;
 
 public:
-  explicit BrushMatchVisitor(std::function<bool(const BrushNode&)> matcher)
+  explicit EntityOwnerMatchVisitor(std::function<bool(const EntityNodeBase*)> matcher)
     : m_matcher(std::move(matcher))
   {
   }
 
   void visit(const BrushNode& brush) override
   {
-    if (m_matcher(brush))
+    if (m_matcher(brush.entity()))
+    {
+      setMatches();
+    }
+  }
+
+  void visit(const PatchNode& patch) override
+  {
+    if (m_matcher(patch.entity()))
     {
       setMatches();
     }
@@ -117,9 +133,8 @@ void MaterialTagMatcher::enable(TagMatcherCallback& callback, Map& map) const
       return matchesMaterial(material);
     });
 
-  std::ranges::sort(matchingMaterials, [](const auto* lhs, const auto* rhs) {
-    return kdl::ci::str_compare(lhs->name(), rhs->name()) < 0;
-  });
+  std::ranges::sort(
+    matchingMaterials, kdl::ci::string_less_natural{}, &gl::Material::name);
 
   const gl::Material* material = nullptr;
   if (matchingMaterials.empty())
@@ -171,9 +186,8 @@ std::unique_ptr<TagMatcher> MaterialNameTagMatcher::clone() const
 
 bool MaterialNameTagMatcher::matches(const Taggable& taggable) const
 {
-  auto visitor = BrushFaceMatchVisitor{[&](const auto& face) {
-    return matchesMaterialName(face.attributes().materialName());
-  }};
+  auto visitor = BrushFaceMatchVisitor{
+    [&](const auto& face) { return matchesMaterialName(face.materialName()); }};
 
   taggable.accept(visitor);
   return visitor.matches();
@@ -211,7 +225,7 @@ SurfaceParmTagMatcher::SurfaceParmTagMatcher(std::string parameter)
 {
 }
 
-SurfaceParmTagMatcher::SurfaceParmTagMatcher(kdl::vector_set<std::string> parameters)
+SurfaceParmTagMatcher::SurfaceParmTagMatcher(kdl::flat_set<std::string> parameters)
   : m_parameters{std::move(parameters)}
 {
 }
@@ -415,16 +429,9 @@ std::unique_ptr<TagMatcher> EntityClassNameTagMatcher::clone() const
 
 bool EntityClassNameTagMatcher::matches(const Taggable& taggable) const
 {
-  BrushMatchVisitor visitor([this](const BrushNode& brush) {
-    if (const auto* entityNode = brush.entity())
-    {
-      return matchesClassname(entityNode->entity().classname());
-    }
-    else
-    {
-      return false;
-    }
-  });
+  auto visitor = EntityOwnerMatchVisitor{[this](const EntityNodeBase* entityNode) {
+    return entityNode && matchesClassname(entityNode->entity().classname());
+  }};
 
   taggable.accept(visitor);
   return visitor.matches();
@@ -432,7 +439,7 @@ bool EntityClassNameTagMatcher::matches(const Taggable& taggable) const
 
 void EntityClassNameTagMatcher::enable(TagMatcherCallback& callback, Map& map) const
 {
-  if (!map.selection().hasOnlyBrushes())
+  if (!map.selection().hasOnlyGeometryNodes())
   {
     return;
   }
@@ -445,9 +452,8 @@ void EntityClassNameTagMatcher::enable(TagMatcherCallback& callback, Map& map) c
                              | std::views::transform([](const auto& d) { return &d; })
                              | kdl::ranges::to<std::vector>();
 
-  std::ranges::sort(matchingDefinitions, [](const auto* lhs, const auto* rhs) {
-    return kdl::ci::str_compare(lhs->name, rhs->name) < 0;
-  });
+  std::ranges::sort(
+    matchingDefinitions, kdl::ci::string_less_natural{}, &EntityDefinition::name);
 
   const EntityDefinition* definition = nullptr;
   if (matchingDefinitions.empty())
@@ -477,6 +483,7 @@ void EntityClassNameTagMatcher::enable(TagMatcherCallback& callback, Map& map) c
   if (!m_material.empty())
   {
     setBrushFaceAttributes(map, {.materialName = m_material});
+    setPatchMaterial(map, m_material);
   }
 }
 
@@ -499,7 +506,7 @@ void EntityClassNameTagMatcher::disable(TagMatcherCallback&, Map& map) const
     return;
   }
   deselectAll(map);
-  reparentNodes(map, {{parentForNodes(map, selectedBrushes), detailBrushes}});
+  reparentNodes(map, {{&parentForNodes(map, selectedBrushes), detailBrushes}});
   selectNodes(
     map, std::vector<Node*>(std::begin(detailBrushes), std::end(detailBrushes)));
 }

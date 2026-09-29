@@ -19,27 +19,40 @@
 
 #include "ui/MapViewToolBox.h"
 
+#include <QStackedLayout>
+#include <QWidget>
+
 #include "mdl/EditorContext.h"
 #include "mdl/Map.h"
 #include "mdl/Selection.h"
 #include "ui/AssembleBrushTool.h"
 #include "ui/ClipTool.h"
 #include "ui/ControlPointTool.h"
+#include "ui/ControlPointToolPage.h"
 #include "ui/CreateEntityTool.h"
 #include "ui/DrawShapeTool.h"
+#include "ui/DrawShapeToolPage.h"
 #include "ui/EdgeTool.h"
 #include "ui/ExtrudeTool.h"
 #include "ui/FaceTool.h"
 #include "ui/MapDocument.h"
 #include "ui/MoveObjectsTool.h"
 #include "ui/RotateTool.h"
+#include "ui/RotateToolPage.h"
 #include "ui/ScaleTool.h"
+#include "ui/ScaleToolPage.h"
 #include "ui/ShearTool.h"
 #include "ui/SplineTool.h"
+#include "ui/SplineToolPage.h"
+#include "ui/SweepTool.h"
+#include "ui/SweepToolPage.h"
 #include "ui/TerrainTool.h"
+#include "ui/TerrainToolPage.h"
 #include "ui/VertexTool.h"
 
 #include "kd/contracts.h"
+
+#include <optional>
 
 namespace tb::ui
 {
@@ -116,6 +129,16 @@ const RotateTool& MapViewToolBox::rotateTool() const
 RotateTool& MapViewToolBox::rotateTool()
 {
   return KDL_CONST_OVERLOAD(rotateTool());
+}
+
+const SweepTool& MapViewToolBox::sweepTool() const
+{
+  return *m_sweepTool;
+}
+
+SweepTool& MapViewToolBox::sweepTool()
+{
+  return KDL_CONST_OVERLOAD(sweepTool());
 }
 
 const ScaleTool& MapViewToolBox::scaleTool() const
@@ -220,7 +243,8 @@ void MapViewToolBox::performAssembleBrush()
 {
   contract_pre(assembleBrushToolActive());
 
-  m_assembleBrushTool->createBrushes();
+  // AssembleBrushTool only ever creates a single brush, so it is never grouped.
+  m_assembleBrushTool->createBrushes(std::nullopt);
 }
 
 bool MapViewToolBox::canToggleClipTool() const
@@ -302,6 +326,55 @@ void MapViewToolBox::moveRotationCenter(const vm::vec3d& delta)
 
   const vm::vec3d center = m_rotateTool->rotationCenter();
   m_rotateTool->setRotationCenter(center + delta);
+}
+
+bool MapViewToolBox::canToggleSweepTool() const
+{
+  const auto& map = m_document.map();
+  return sweepToolActive() || map.selection().hasBrushFaces();
+}
+
+void MapViewToolBox::toggleSweepTool()
+{
+  if (canToggleSweepTool())
+  {
+    toggleTool(sweepTool());
+  }
+}
+
+bool MapViewToolBox::sweepToolActive() const
+{
+  return m_sweepTool->active();
+}
+
+void MapViewToolBox::moveSweepCenter(const vm::vec3d& delta)
+{
+  contract_pre(sweepToolActive());
+
+  const auto center = m_sweepTool->destinationCenter();
+  m_sweepTool->setDestinationCenter(center + delta);
+}
+
+void MapViewToolBox::rotateSweepCap(const vm::vec3d& axis, const double angle)
+{
+  contract_pre(sweepToolActive());
+
+  m_sweepTool->rotateDestinationCap(axis, angle);
+}
+
+void MapViewToolBox::scaleSweepCap(const double distance)
+{
+  contract_pre(sweepToolActive());
+
+  m_sweepTool->moveScaleHandle(distance);
+}
+
+void MapViewToolBox::performSweep()
+{
+  contract_pre(sweepToolActive());
+
+  m_sweepTool->commitSweep();
+  deactivateCurrentTool();
 }
 
 bool MapViewToolBox::canToggleScaleTool() const
@@ -455,7 +528,7 @@ bool MapViewToolBox::terrainToolActive() const
 
 bool MapViewToolBox::anyModalToolActive() const
 {
-  return rotateToolActive() || scaleToolActive() || shearToolActive()
+  return rotateToolActive() || sweepToolActive() || scaleToolActive() || shearToolActive()
          || anyNodeHandleToolActive();
 }
 
@@ -490,6 +563,8 @@ void MapViewToolBox::moveSplinePoint(const vm::vec3d& delta)
 
 void MapViewToolBox::createTools(QStackedLayout* bookCtrl)
 {
+  m_bookCtrl = bookCtrl;
+
   m_clipTool = std::make_unique<ClipTool>(m_document);
   m_assembleBrushTool = std::make_unique<AssembleBrushTool>(m_document);
   m_createEntityTool = std::make_unique<CreateEntityTool>(m_document);
@@ -497,6 +572,7 @@ void MapViewToolBox::createTools(QStackedLayout* bookCtrl)
   m_moveObjectsTool = std::make_unique<MoveObjectsTool>(m_document);
   m_extrudeTool = std::make_unique<ExtrudeTool>(m_document);
   m_rotateTool = std::make_unique<RotateTool>(m_document);
+  m_sweepTool = std::make_unique<SweepTool>(m_document);
   m_scaleTool = std::make_unique<ScaleTool>(m_document);
   m_shearTool = std::make_unique<ShearTool>(m_document);
   m_vertexTool = std::make_unique<VertexTool>(m_document);
@@ -509,6 +585,7 @@ void MapViewToolBox::createTools(QStackedLayout* bookCtrl)
   addExclusiveToolGroup(
     assembleBrushTool(),
     rotateTool(),
+    sweepTool(),
     scaleTool(),
     shearTool(),
     controlPointTool(),
@@ -531,6 +608,7 @@ void MapViewToolBox::createTools(QStackedLayout* bookCtrl)
   suppressWhileActive(
     assembleBrushTool(), moveObjectsTool(), extrudeTool(), drawShapeTool());
   suppressWhileActive(rotateTool(), moveObjectsTool(), extrudeTool(), drawShapeTool());
+  suppressWhileActive(sweepTool(), moveObjectsTool(), extrudeTool(), drawShapeTool());
   suppressWhileActive(scaleTool(), moveObjectsTool(), extrudeTool(), drawShapeTool());
   suppressWhileActive(shearTool(), moveObjectsTool(), extrudeTool(), drawShapeTool());
   suppressWhileActive(vertexTool(), moveObjectsTool(), extrudeTool(), drawShapeTool());
@@ -542,29 +620,54 @@ void MapViewToolBox::createTools(QStackedLayout* bookCtrl)
   suppressWhileActive(splineTool(), moveObjectsTool(), extrudeTool(), drawShapeTool());
   suppressWhileActive(terrainTool(), moveObjectsTool(), extrudeTool(), drawShapeTool());
 
-  registerTool(moveObjectsTool(), bookCtrl);
-  registerTool(rotateTool(), bookCtrl);
-  registerTool(scaleTool(), bookCtrl);
-  registerTool(shearTool(), bookCtrl);
-  registerTool(extrudeTool(), bookCtrl);
-  registerTool(assembleBrushTool(), bookCtrl);
-  registerTool(clipTool(), bookCtrl);
-  registerTool(vertexTool(), bookCtrl);
-  registerTool(edgeTool(), bookCtrl);
-  registerTool(faceTool(), bookCtrl);
-  registerTool(controlPointTool(), bookCtrl);
-  registerTool(splineTool(), bookCtrl);
-  registerTool(terrainTool(), bookCtrl);
-  registerTool(createEntityTool(), bookCtrl);
-  registerTool(drawShapeTool(), bookCtrl);
+  addTool(moveObjectsTool());
+  addTool(rotateTool());
+  addTool(sweepTool());
+  addTool(scaleTool());
+  addTool(shearTool());
+  addTool(extrudeTool());
+  addTool(assembleBrushTool());
+  addTool(clipTool());
+  addTool(vertexTool());
+  addTool(edgeTool());
+  addTool(faceTool());
+  addTool(controlPointTool());
+  addTool(splineTool());
+  addTool(terrainTool());
+  addTool(createEntityTool());
+  addTool(drawShapeTool());
+
+  auto* parent = bookCtrl->parentWidget();
+
+  m_emptyToolPage = new QWidget{parent};
+  bookCtrl->addWidget(m_emptyToolPage);
+
+  m_rotateToolPage = new RotateToolPage{m_document, rotateTool(), parent};
+  bookCtrl->addWidget(m_rotateToolPage);
+
+  m_sweepToolPage = new SweepToolPage{sweepTool(), parent};
+  bookCtrl->addWidget(m_sweepToolPage);
+
+  m_scaleToolPage = new ScaleToolPage{m_document, scaleTool(), parent};
+  bookCtrl->addWidget(m_scaleToolPage);
+
+  m_splineToolPage = new SplineToolPage{m_document, splineTool(), parent};
+  bookCtrl->addWidget(m_splineToolPage);
+
+  m_terrainToolPage = new TerrainToolPage{m_document, terrainTool(), parent};
+  bookCtrl->addWidget(m_terrainToolPage);
+
+  m_controlPointToolPage = new ControlPointToolPage{m_document, parent};
+  bookCtrl->addWidget(m_controlPointToolPage);
+
+  auto* drawShapeToolPage =
+    new DrawShapeToolPage{drawShapeTool().extensionManager(), parent};
+  m_notifierConnection += drawShapeToolPage->applyParametersNotifier.connect(
+    [this]() { drawShapeTool().applyExtensionParameters(); });
+  m_drawShapeToolPage = drawShapeToolPage;
+  bookCtrl->addWidget(m_drawShapeToolPage);
 
   updateToolPage();
-}
-
-void MapViewToolBox::registerTool(Tool& tool, QStackedLayout* bookCtrl)
-{
-  tool.createPage(bookCtrl);
-  addTool(tool);
 }
 
 void MapViewToolBox::connectObservers()
@@ -613,47 +716,37 @@ void MapViewToolBox::updateToolPage()
 {
   if (rotateToolActive())
   {
-    rotateTool().showPage();
+    m_bookCtrl->setCurrentWidget(m_rotateToolPage);
+  }
+  else if (sweepToolActive())
+  {
+    m_bookCtrl->setCurrentWidget(m_sweepToolPage);
   }
   else if (scaleToolActive())
   {
-    scaleTool().showPage();
-  }
-  else if (shearToolActive())
-  {
-    shearTool().showPage();
-  }
-  else if (vertexToolActive())
-  {
-    vertexTool().showPage();
-  }
-  else if (edgeToolActive())
-  {
-    edgeTool().showPage();
-  }
-  else if (faceToolActive())
-  {
-    faceTool().showPage();
+    m_bookCtrl->setCurrentWidget(m_scaleToolPage);
   }
   else if (controlPointToolActive())
   {
-    controlPointTool().showPage();
+    m_bookCtrl->setCurrentWidget(m_controlPointToolPage);
   }
-  else if (clipToolActive())
+  else if (
+    shearToolActive() || vertexToolActive() || edgeToolActive() || faceToolActive()
+    || clipToolActive())
   {
-    clipTool().showPage();
+    m_bookCtrl->setCurrentWidget(m_emptyToolPage);
   }
   else if (splineToolActive())
   {
-    splineTool().showPage();
+    m_bookCtrl->setCurrentWidget(m_splineToolPage);
   }
   else if (terrainToolActive())
   {
-    terrainTool().showPage();
+    m_bookCtrl->setCurrentWidget(m_terrainToolPage);
   }
   else
   {
-    drawShapeTool().showPage();
+    m_bookCtrl->setCurrentWidget(m_drawShapeToolPage);
   }
 }
 

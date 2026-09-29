@@ -17,7 +17,7 @@
  along with TrenchBroom. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "Result.h"
+#include "base/Result.h"
 #include "gl/MockTaskRunner.h"
 #include "gl/Resource.h"
 #include "gl/TestGl.h"
@@ -744,6 +744,72 @@ TEST_CASE("Resource")
       auto resource = ResourceT{[&]() { return Result<MockResource>{MockResource{}}; }};
       setResourceState<ResourceDropped>(resource, mockTaskRunner, processContext);
       CHECK(resource.needsProcessing());
+    }
+  }
+
+  SECTION("isLoaded")
+  {
+    SECTION("ResourceFailed state")
+    {
+      auto resource =
+        ResourceT{[&]() { return Result<MockResource>{Error{"MockResource failed"}}; }};
+
+      setResourceState<ResourceLoading<MockResource>>(
+        resource, mockTaskRunner, processContext);
+      mockTaskRunner.resolveNextPromise();
+
+      resource.process(taskRunner, processContext);
+      REQUIRE(
+        resource.state()
+        == ResourceState<MockResource>{ResourceFailed{"MockResource failed"}});
+      CHECK(!resource.isLoaded());
+    }
+
+    SECTION("ResourceUnloaded state")
+    {
+      auto resource = ResourceT{[&]() { return Result<MockResource>{MockResource{}}; }};
+      setResourceState<ResourceUnloaded<MockResource>>(
+        resource, mockTaskRunner, processContext);
+      CHECK(!resource.isLoaded());
+    }
+
+    SECTION("ResourceLoading state")
+    {
+      auto resource = ResourceT{[&]() { return Result<MockResource>{MockResource{}}; }};
+      setResourceState<ResourceLoading<MockResource>>(
+        resource, mockTaskRunner, processContext);
+      CHECK(!resource.isLoaded());
+    }
+
+    SECTION("ResourceLoaded state")
+    {
+      auto resource = ResourceT{[&]() { return Result<MockResource>{MockResource{}}; }};
+      setResourceState<ResourceLoaded<MockResource>>(
+        resource, mockTaskRunner, processContext);
+      CHECK(resource.isLoaded());
+    }
+
+    SECTION("ResourceReady state")
+    {
+      auto resource = ResourceT{[&]() { return Result<MockResource>{MockResource{}}; }};
+      setResourceState<ResourceReady<MockResource>>(
+        resource, mockTaskRunner, processContext);
+      CHECK(resource.isLoaded());
+    }
+
+    SECTION("ResourceDropping state")
+    {
+      auto resource = ResourceT{[&]() { return Result<MockResource>{MockResource{}}; }};
+      setResourceState<ResourceDropping<MockResource>>(
+        resource, mockTaskRunner, processContext);
+      CHECK(!resource.isLoaded());
+    }
+
+    SECTION("ResourceDropped state")
+    {
+      auto resource = ResourceT{[&]() { return Result<MockResource>{MockResource{}}; }};
+      setResourceState<ResourceDropped>(resource, mockTaskRunner, processContext);
+      CHECK(!resource.isLoaded());
     }
   }
 }

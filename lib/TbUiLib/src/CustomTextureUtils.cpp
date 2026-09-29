@@ -23,8 +23,8 @@
 #include <QFileInfo>
 #include <QMessageBox>
 
-#include "Logger.h"
-#include "PreferenceManager.h"
+#include "base/Logger.h"
+#include "base/PreferenceManager.h"
 #include "fs/DiskIO.h"
 #include "fs/PathInfo.h"
 #include "mdl/CustomTextures.h"

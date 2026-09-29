@@ -21,7 +21,8 @@
 
 #include "mdl/Brush.h"
 #include "mdl/BrushFace.h"
-#include "mdl/BrushFaceAttributes.h"
+#include "mdl/SurfaceAttributes.h"
+#include "mdl/UvAttributes.h"
 
 #include "kd/result.h"
 #include "kd/result_fold.h"
@@ -52,14 +53,50 @@ Result<Brush> createPrism(
   const vm::vec3d& a1,
   const vm::vec3d& b1,
   const vm::vec3d& c1,
-  const BrushFaceAttributes& attributes)
+  const std::string& materialName,
+  const UvAttributes& uvAttributes)
 {
   return std::vector{
-           BrushFace::create(a0, b0, c0, attributes, mapFormat), // bottom
-           BrushFace::create(a1, c1, b1, attributes, mapFormat), // top
-           BrushFace::create(a0, a1, b0, attributes, mapFormat), // side a -> b
-           BrushFace::create(b0, b1, c0, attributes, mapFormat), // side b -> c
-           BrushFace::create(c0, c1, a0, attributes, mapFormat), // side c -> a
+           BrushFace::create(
+             a0,
+             b0,
+             c0,
+             materialName,
+             uvAttributes,
+             SurfaceAttributes{},
+             mapFormat), // bottom
+           BrushFace::create(
+             a1,
+             c1,
+             b1,
+             materialName,
+             uvAttributes,
+             SurfaceAttributes{},
+             mapFormat), // top
+           BrushFace::create(
+             a0,
+             a1,
+             b0,
+             materialName,
+             uvAttributes,
+             SurfaceAttributes{},
+             mapFormat), // side a -> b
+           BrushFace::create(
+             b0,
+             b1,
+             c0,
+             materialName,
+             uvAttributes,
+             SurfaceAttributes{},
+             mapFormat), // side b -> c
+           BrushFace::create(
+             c0,
+             c1,
+             a0,
+             materialName,
+             uvAttributes,
+             SurfaceAttributes{},
+             mapFormat), // side c -> a
          }
          | kdl::fold | kdl::and_then([&](auto faces) {
              return Brush::create(worldBounds, std::move(faces));
@@ -80,8 +117,9 @@ Result<std::vector<Brush>> createTerrainCellBrushes(
     return Error{"Terrain cell is out of bounds"};
   }
 
-  auto attributes = BrushFaceAttributes{terrainCellMaterial(terrain, column, row)};
-  attributes.setScale(vm::vec2f{terrain.texScaleX, terrain.texScaleY});
+  auto uvAttributes = UvAttributes{};
+  uvAttributes.scale = vm::vec2f{terrain.texScaleX, terrain.texScaleY};
+  const auto materialName = terrainCellMaterial(terrain, column, row);
 
   const auto t00 = terrainVertexPosition(terrain, column, row);
   const auto t10 = terrainVertexPosition(terrain, column + 1, row);
@@ -106,7 +144,8 @@ Result<std::vector<Brush>> createTerrainCellBrushes(
              t00,
              t10,
              t11,
-             attributes),
+             materialName,
+             uvAttributes),
            createPrism(
              mapFormat,
              worldBounds,
@@ -116,7 +155,8 @@ Result<std::vector<Brush>> createTerrainCellBrushes(
              t00,
              t11,
              t01,
-             attributes),
+             materialName,
+             uvAttributes),
          }
          | kdl::fold;
 }

@@ -22,7 +22,10 @@
 #include <QAbstractTableModel>
 
 #include "ui/ActionInfo.h"
+#include "ui/MapDocumentActionCache.h"
 
+#include <memory>
+#include <unordered_set>
 #include <vector>
 
 class QObject;
@@ -38,10 +41,13 @@ class KeyboardShortcutModel : public QAbstractTableModel
 private:
   ActionManager& m_actionManager;
   MapDocument* m_document;
+  std::unique_ptr<MapDocumentActionCache> m_actionCache;
   std::vector<ActionInfo> m_actions;
-  std::vector<int> m_conflicts;
+  std::unordered_set<size_t> m_conflicts;
 
 public:
+  static constexpr int ConflictRole = Qt::UserRole + 1;
+
   explicit KeyboardShortcutModel(
     ActionManager& actionManager, MapDocument* document, QObject* parent = nullptr);
 

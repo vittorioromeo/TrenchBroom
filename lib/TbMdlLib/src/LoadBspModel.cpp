@@ -106,11 +106,11 @@ std::vector<gl::Material> parseMaterials(
 
     auto materialName = readMipTextureName(reader);
     auto textureReader = reader.subReaderFromBegin(size_t(offset)).buffer();
-    const auto mask = getTextureMaskFromName(materialName);
+    const auto isMasked = isMaskedTextureName(materialName);
 
     result.push_back(
-      (version == 29 ? loadIdMipTexture(textureReader, palette, mask)
-                     : loadHlMipTexture(textureReader, mask))
+      (version == 29 ? loadIdMipTexture(textureReader, palette, isMasked)
+                     : loadHlMipTexture(textureReader, isMasked))
       | kdl::or_else(makeReadTextureErrorHandler(fs, logger))
       | kdl::transform([&](auto texture) {
           auto textureResource = createTextureResource(std::move(texture));
@@ -229,7 +229,7 @@ void parseFrame(
     }
   }
 
-  auto bounds = vm::bbox3f::builder{};
+  auto positions = std::vector<vm::vec3f>{};
 
   auto builder = gl::MaterialIndexRangeMapBuilder<Vertex::Type>{totalVertexCount, size};
   for (size_t i = 0; i < modelFaceCount; ++i)
@@ -253,7 +253,7 @@ void parseFrame(
         const auto& position = vertices[vertexIndex];
         const auto uvCoordss = uvCoords(position, materialInfo, skin);
 
-        bounds.add(position);
+        positions.push_back(position);
 
         faceVertices.emplace_back(position, uvCoordss);
       }
@@ -263,7 +263,8 @@ void parseFrame(
   }
 
   auto frameName = fmt::format("frame_{}", frameIndex);
-  auto& frame = modelData.addFrame(std::move(frameName), bounds.bounds());
+  auto& frame = modelData.addFrame(
+    std::move(frameName), vm::bbox3f::build(positions).value_or(vm::bbox3f{}));
   surface.addMesh(frame, std::move(builder.vertices()), std::move(builder.indices()));
 }
 

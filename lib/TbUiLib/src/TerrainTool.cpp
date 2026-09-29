@@ -19,9 +19,9 @@
 
 #include "ui/TerrainTool.h"
 
-#include "Logger.h"
-#include "PreferenceManager.h"
-#include "Preferences.h"
+#include "base/Logger.h"
+#include "base/PreferenceManager.h"
+#include "prefs/Preferences.h"
 #include "fs/DiskIO.h"
 #include "fs/File.h"
 #include "mdl/Brush.h"
@@ -45,7 +45,6 @@
 #include "mdl/WorldNode.h"
 #include "render/RenderService.h"
 #include "ui/MapDocument.h"
-#include "ui/TerrainToolPage.h"
 
 #include "kd/overload.h"
 #include "kd/ranges/to.h"
@@ -828,7 +827,7 @@ void TerrainTool::commitTerrain(const std::string& commandName)
   auto* newNode = new mdl::EntityNode{std::move(entity)};
   newNode->addChildren(createBrushNodes());
 
-  auto* parent = m_terrainNode ? m_terrainNode->parent() : parentForNodes(map, {});
+  auto* parent = m_terrainNode ? m_terrainNode->parent() : &parentForNodes(map, {});
 
   auto transaction = mdl::Transaction{map, commandName};
   if (m_terrainNode)
@@ -892,11 +891,6 @@ bool TerrainTool::doDeactivate()
   clearTerrain();
   m_otherTerrains.clear();
   return true;
-}
-
-QWidget* TerrainTool::doCreatePage(QWidget* parent)
-{
-  return new TerrainToolPage{m_document, *this, parent};
 }
 
 void TerrainTool::connectObservers()

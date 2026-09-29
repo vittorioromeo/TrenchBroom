@@ -28,8 +28,8 @@
 #include <QTableView>
 #include <QTimer>
 
-#include "PreferenceManager.h"
-#include "Preferences.h"
+#include "base/PreferenceManager.h"
+#include "prefs/Preferences.h"
 #include "ui/ActionManager.h"
 #include "ui/AppController.h"
 #include "ui/KeyboardShortcutItemDelegate.h"
@@ -52,18 +52,29 @@ KeyboardPreferencePane::KeyboardPreferencePane(
 {
   m_proxy->setSourceModel(m_model);
   m_proxy->setFilterCaseSensitivity(Qt::CaseInsensitive);
-  m_proxy->setFilterKeyColumn(3); // Filter based on the text in the Description column
+  m_proxy->setFilterKeyColumn(0); // Filter based on the text in the Description column
+  m_proxy->setSortRole(KeyboardShortcutModel::ConflictRole);
+  m_proxy->sort(0); // Sort rows with conflicts to the top
 
   m_table->setModel(m_proxy);
 
+  // Keep the current row in view when sorting moves it, e.g. when editing a shortcut
+  // introduces or resolves a conflict.
+  connect(m_proxy, &QAbstractItemModel::layoutChanged, this, [&] {
+    if (const auto currentIndex = m_table->currentIndex(); currentIndex.isValid())
+    {
+      m_table->scrollTo(currentIndex);
+    }
+  });
+
   m_table->setHorizontalHeader(new QHeaderView(Qt::Horizontal));
-  m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeMode::Fixed);
-  m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeMode::Fixed);
-  m_table->horizontalHeader()->resizeSection(0, 100);
-  m_table->horizontalHeader()->resizeSection(1, 100);
+  m_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeMode::Fixed);
+  m_table->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeMode::Fixed);
+  m_table->horizontalHeader()->resizeSection(2, 100);
+  m_table->horizontalHeader()->resizeSection(3, 100);
   m_table->horizontalHeader()->setSectionResizeMode(
-    2, QHeaderView::ResizeMode::ResizeToContents);
-  m_table->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeMode::Stretch);
+    0, QHeaderView::ResizeMode::ResizeToContents);
+  m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeMode::Stretch);
 
   // Tighter than default vertical row height, without the overhead of autoresizing
   m_table->verticalHeader()->setDefaultSectionSize(
@@ -131,12 +142,6 @@ void KeyboardPreferencePane::updateControls()
 
 bool KeyboardPreferencePane::validate()
 {
-  if (m_model->hasConflicts())
-  {
-    QMessageBox::warning(
-      this, "Conflicts", "Please fix all conflicting shortcuts (highlighted in red).");
-    return false;
-  }
   return true;
 }
 

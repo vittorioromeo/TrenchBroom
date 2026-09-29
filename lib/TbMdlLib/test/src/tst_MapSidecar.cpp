@@ -108,7 +108,8 @@ TEST_CASE("MapSidecar")
 
     // This is what a map whose sidecar has gone missing looks like: the classname and
     // the id remain, so the generated brushes stay as ordinary geometry.
-    for (const auto& property : entity.properties())
+    const auto properties = entity.properties();
+    for (const auto& property : properties)
     {
       if (isSidecarPropertyKey(property.key()))
       {

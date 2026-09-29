@@ -29,12 +29,14 @@
 #include "kd/ranges/to.h"
 #include "kd/result.h"
 
+#include "vm/approx.h"
 #include "vm/constants.h"
 
 #include <algorithm>
 #include <string>
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 #include <catch2/matchers/catch_matchers_contains.hpp>
 #include <catch2/matchers/catch_matchers_range_equals.hpp>
 
@@ -49,7 +51,9 @@ auto makeFace(const std::tuple<vm::vec3d, vm::vec3d, vm::vec3d>& face)
            std::get<0>(face),
            std::get<1>(face),
            std::get<2>(face),
-           BrushFaceAttributes{"someName"},
+           "someName",
+           UvAttributes{},
+           SurfaceAttributes{},
            MapFormat::Standard)
          | kdl::value();
 };
@@ -88,25 +92,28 @@ TEST_CASE("BrushBuilder")
       CHECK(cube.bounds() == vm::bbox3d{-64.0, +64.0});
 
       CHECK_THAT(
-        cube.faces() | std::views::transform([](const auto& face) {
-          return face.attributes().materialName();
-        }),
+        cube.faces()
+          | std::views::transform([](const auto& face) { return face.materialName(); }),
         RangeEquals(std::vector<std::string>{6u, "someName"}));
     }) | kdl::transform_error([](const auto& e) { FAIL(e); });
   }
 
   SECTION("createCubeDefaults")
   {
-    auto defaultAttribs = BrushFaceAttributes{"defaultMaterial"};
-    defaultAttribs.setOffset({0.5f, 0.5f});
-    defaultAttribs.setScale({0.5f, 0.5f});
-    defaultAttribs.setRotation(45.0f);
-    defaultAttribs.setSurfaceContents(1);
-    defaultAttribs.setSurfaceFlags(2);
-    defaultAttribs.setSurfaceValue(0.1f);
-    defaultAttribs.setColor(RgbB{255, 255, 255});
+    const auto defaultUvAttributes = UvAttributes{
+      .offset = {0.5f, 0.5f},
+      .scale = {0.5f, 0.5f},
+      .rotation = 45.0f,
+    };
+    const auto defaultSurfaceAttributes = SurfaceAttributes{
+      .contents = 1,
+      .flags = 2,
+      .value = 0.1f,
+      .color = RgbB{255, 255, 255},
+    };
 
-    auto builder = BrushBuilder{MapFormat::Standard, worldBounds, defaultAttribs};
+    auto builder = BrushBuilder{
+      MapFormat::Standard, worldBounds, defaultUvAttributes, defaultSurfaceAttributes};
 
     builder.createCube(128.0, "someName") | kdl::transform([&](const auto& cube) {
       CHECK(cube.fullySpecified());
@@ -114,23 +121,36 @@ TEST_CASE("BrushBuilder")
 
       CHECK_THAT(
         cube.faces()
-          | std::views::transform([](const auto& face) { return face.attributes(); }),
-        RangeEquals(std::vector{6u, BrushFaceAttributes{"someName", defaultAttribs}}));
+          | std::views::transform([](const auto& face) { return face.materialName(); }),
+        RangeEquals(std::vector<std::string>{6u, "someName"}));
+      CHECK_THAT(
+        cube.faces()
+          | std::views::transform([](const auto& face) { return face.uvAttributes(); }),
+        RangeEquals(std::vector{6u, defaultUvAttributes}));
+      CHECK_THAT(
+        cube.faces() | std::views::transform([](const auto& face) {
+          return face.surfaceAttributes();
+        }),
+        RangeEquals(std::vector{6u, defaultSurfaceAttributes}));
     }) | kdl::transform_error([](const auto& e) { FAIL(e); });
   }
 
   SECTION("createBrushDefaults")
   {
-    auto defaultAttribs = BrushFaceAttributes{"defaultMaterial"};
-    defaultAttribs.setOffset({0.5f, 0.5f});
-    defaultAttribs.setScale({0.5f, 0.5f});
-    defaultAttribs.setRotation(45.0f);
-    defaultAttribs.setSurfaceContents(1);
-    defaultAttribs.setSurfaceFlags(2);
-    defaultAttribs.setSurfaceValue(0.1f);
-    defaultAttribs.setColor(RgbB{255, 255, 255});
+    const auto defaultUvAttributes = UvAttributes{
+      .offset = {0.5f, 0.5f},
+      .scale = {0.5f, 0.5f},
+      .rotation = 45.0f,
+    };
+    const auto defaultSurfaceAttributes = SurfaceAttributes{
+      .contents = 1,
+      .flags = 2,
+      .value = 0.1f,
+      .color = RgbB{255, 255, 255},
+    };
 
-    auto builder = BrushBuilder{MapFormat::Standard, worldBounds, defaultAttribs};
+    auto builder = BrushBuilder{
+      MapFormat::Standard, worldBounds, defaultUvAttributes, defaultSurfaceAttributes};
 
     builder.createBrush(
       Polyhedron3{
@@ -149,10 +169,20 @@ TEST_CASE("BrushBuilder")
           CHECK(brush.bounds() == vm::bbox3d{-64.0, +64.0});
 
           CHECK_THAT(
-            brush.faces()
-              | std::views::transform([](const auto& face) { return face.attributes(); }),
-            RangeEquals(
-              std::vector{6u, BrushFaceAttributes{"someName", defaultAttribs}}));
+            brush.faces() | std::views::transform([](const auto& face) {
+              return face.materialName();
+            }),
+            RangeEquals(std::vector<std::string>{6u, "someName"}));
+          CHECK_THAT(
+            brush.faces() | std::views::transform([](const auto& face) {
+              return face.uvAttributes();
+            }),
+            RangeEquals(std::vector{6u, defaultUvAttributes}));
+          CHECK_THAT(
+            brush.faces() | std::views::transform([](const auto& face) {
+              return face.surfaceAttributes();
+            }),
+            RangeEquals(std::vector{6u, defaultSurfaceAttributes}));
         })
       | kdl::transform_error([](const auto& e) { FAIL(e); });
   }
@@ -482,6 +512,325 @@ TEST_CASE("BrushBuilder")
             "someName")
           == Result<std::vector<Brush>>{std::vector<Brush>{}});
       }
+    }
+  }
+
+  SECTION("createSpandrelForArch")
+  {
+    auto builder = BrushBuilder{MapFormat::Standard, worldBounds};
+
+    SECTION("Edge aligned")
+    {
+      const auto bounds = vm::bbox3d{{-128, -64, 0}, {128, 64, 64}};
+      builder.createSpandrelForArch(
+        bounds, 16.0, EdgeAlignedCircle{16}, vm::axis::y, "someName")
+        | kdl::transform([&](const auto& brushes) {
+            REQUIRE(brushes.size() == 6u);
+
+            // Check only one brush to avoid clutter.
+            const auto expectedBrush = makeBrush({
+              {{128, 64, 64},
+               {108.51316032288942, -64, 36.253087830433365},
+               {108.51316032288942, 64, 36.253087830433365}},
+              {{128, 64, 12.730391512298111},
+               {108.51316032288942, -64, 36.253087830433365},
+               {128, -64, 12.730391512298111}},
+              {{128, -64, 64},
+               {128, -64, 12.730391512298111},
+               {108.51316032288942, -64, 36.253087830433365}},
+              {{128, 64, 64},
+               {108.51316032288942, 64, 36.253087830433365},
+               {128, 64, 12.730391512298111}},
+              {{128, 64, 64}, {128, -64, 12.730391512298111}, {128, -64, 64}},
+            });
+
+            CHECK_THAT(
+              brushes, Contains(MatchesBrushVertices(expectedBrush, vertexEpsilon)));
+          })
+        | kdl::transform_error([](const auto& e) { FAIL(e); });
+    }
+
+    SECTION("Scalable")
+    {
+      const auto bounds = vm::bbox3d{{-128, -64, 0}, {128, 64, 64}};
+      builder.createSpandrelForArch(
+        bounds, 16.0, ScalableCircle{0}, vm::axis::y, "someName")
+        | kdl::transform([&](const auto& brushes) {
+            REQUIRE(brushes.size() == 4u);
+
+            // Check only one brush to avoid clutter.
+            const auto expectedBrush = makeBrush({
+              {{128, 64, 16}, {112, -64, 48}, {128, -64, 16}},
+              {{128, 64, 64}, {112, -64, 48}, {112, 64, 48}},
+              {{128, -64, 64}, {128, -64, 16}, {112, -64, 48}},
+              {{128, 64, 64}, {112, 64, 48}, {128, 64, 16}},
+              {{128, 64, 64}, {128, -64, 16}, {128, -64, 64}},
+            });
+
+            CHECK_THAT(
+              brushes, Contains(MatchesBrushVertices(expectedBrush, vertexEpsilon)));
+          })
+        | kdl::transform_error([](const auto& e) { FAIL(e); });
+    }
+
+    SECTION("Along each axis")
+    {
+      const auto bounds = vm::bbox3d{-64.0, 64.0};
+      const auto axis = GENERATE(vm::axis::x, vm::axis::y, vm::axis::z);
+      CAPTURE(axis);
+
+      builder.createSpandrelForArch(bounds, 16.0, EdgeAlignedCircle{8}, axis, "someName")
+        | kdl::transform([&](const auto& brushes) { CHECK(brushes.size() == 2u); })
+        | kdl::transform_error([](const auto& e) { FAIL(e); });
+    }
+
+    SECTION("Degenerate bounds do not error")
+    {
+      const auto bounds = GENERATE(
+        vm::bbox3d{{-128, -64, 0}, {128, 64, 0}},
+        vm::bbox3d{{-128, 0, 0}, {128, 0, 64}},
+        vm::bbox3d{{0, -64, 0}, {0, 64, 64}});
+
+      CHECK(
+        builder.createSpandrelForArch(
+          bounds, 16.0, EdgeAlignedCircle{12}, vm::axis::x, "someName")
+        == Result<std::vector<Brush>>{std::vector<Brush>{}});
+    }
+  }
+
+  SECTION("createCuboid")
+  {
+    auto builder = BrushBuilder{MapFormat::Standard, worldBounds};
+
+    SECTION("from a size")
+    {
+      // the cuboid is centered at the origin
+      builder.createCuboid(vm::vec3d{64, 128, 32}, "someName")
+        | kdl::transform([](const auto& cuboid) {
+            CHECK(cuboid.fullySpecified());
+            CHECK(cuboid.bounds() == vm::bbox3d{{-32, -64, -16}, {32, 64, 16}});
+
+            CHECK_THAT(
+              cuboid.faces() | std::views::transform([](const auto& face) {
+                return face.materialName();
+              }),
+              RangeEquals(std::vector<std::string>{6u, "someName"}));
+          })
+        | kdl::transform_error([](const auto& e) { FAIL(e); });
+    }
+
+    SECTION("from bounds")
+    {
+      const auto bounds = vm::bbox3d{{-16, -32, -64}, {32, 64, 128}};
+      builder.createCuboid(bounds, "someName") | kdl::transform([&](const auto& cuboid) {
+        CHECK(cuboid.fullySpecified());
+        CHECK(cuboid.bounds() == bounds);
+      }) | kdl::transform_error([](const auto& e) { FAIL(e); });
+    }
+
+    SECTION("with a material per face")
+    {
+      const auto materialAt = [](const auto& cuboid, const vm::vec3d& normal) {
+        const auto faceIndex = cuboid.findFace(normal);
+        REQUIRE(faceIndex);
+        return cuboid.face(*faceIndex).materialName();
+      };
+
+      const auto checkMaterials = [&](const auto& cuboid) {
+        CHECK(materialAt(cuboid, vm::vec3d{-1, 0, 0}) == "left");
+        CHECK(materialAt(cuboid, vm::vec3d{+1, 0, 0}) == "right");
+        CHECK(materialAt(cuboid, vm::vec3d{0, -1, 0}) == "front");
+        CHECK(materialAt(cuboid, vm::vec3d{0, +1, 0}) == "back");
+        CHECK(materialAt(cuboid, vm::vec3d{0, 0, +1}) == "top");
+        CHECK(materialAt(cuboid, vm::vec3d{0, 0, -1}) == "bottom");
+      };
+
+      SECTION("from a size")
+      {
+        builder.createCuboid(
+          vm::vec3d{64, 64, 64}, "left", "right", "front", "back", "top", "bottom")
+          | kdl::transform(checkMaterials)
+          | kdl::transform_error([](const auto& e) { FAIL(e); });
+      }
+
+      SECTION("from bounds")
+      {
+        builder.createCuboid(
+          vm::bbox3d{{-16, -32, -64}, {32, 64, 128}},
+          "left",
+          "right",
+          "front",
+          "back",
+          "top",
+          "bottom")
+          | kdl::transform(checkMaterials)
+          | kdl::transform_error([](const auto& e) { FAIL(e); });
+      }
+    }
+  }
+
+  SECTION("createCone")
+  {
+    auto builder = BrushBuilder{MapFormat::Standard, worldBounds};
+
+    const auto bounds = vm::bbox3d{{-32, -32, -32}, {32, 32, 32}};
+
+    SECTION("edge aligned")
+    {
+      builder.createCone(bounds, EdgeAlignedCircle{4}, vm::axis::z, "someName")
+        | kdl::transform([&](const auto& cone) {
+            CHECK(cone.fullySpecified());
+            CHECK(cone.bounds() == bounds);
+
+            // one face per side of the base circle, plus the base itself
+            CHECK(cone.faceCount() == 5u);
+
+            const auto expectedCone = makeBrush({
+              {{-32, -32, -32}, {-32, 32, -32}, {0, 0, 32}},
+              {{-32, 32, -32}, {32, 32, -32}, {0, 0, 32}},
+              {{32, 32, -32}, {32, -32, -32}, {0, 0, 32}},
+              {{32, -32, -32}, {-32, -32, -32}, {0, 0, 32}},
+              {{-32, -32, -32}, {32, -32, -32}, {32, 32, -32}},
+            });
+            CHECK_THAT(cone, MatchesBrushVertices(expectedCone, vertexEpsilon));
+          })
+        | kdl::transform_error([](const auto& e) { FAIL(e); });
+    }
+
+    SECTION("along each axis")
+    {
+      const auto axis = GENERATE(vm::axis::x, vm::axis::y, vm::axis::z);
+      CAPTURE(axis);
+
+      builder.createCone(bounds, VertexAlignedCircle{6}, axis, "someName")
+        | kdl::transform([&](const auto& cone) {
+            CHECK(cone.fullySpecified());
+            CHECK(cone.faceCount() == 7u);
+          })
+        | kdl::transform_error([](const auto& e) { FAIL(e); });
+    }
+  }
+
+  SECTION("createUvSphere")
+  {
+    auto builder = BrushBuilder{MapFormat::Standard, worldBounds};
+
+    const auto bounds = vm::bbox3d{{-32, -32, -32}, {32, 32, 32}};
+
+    SECTION("aligned")
+    {
+      const auto circleShape =
+        GENERATE(CircleShape{EdgeAlignedCircle{8}}, CircleShape{VertexAlignedCircle{8}});
+
+      builder.createUvSphere(bounds, circleShape, 2, vm::axis::z, "someName")
+        | kdl::transform([&](const auto& sphere) {
+            CHECK(sphere.fullySpecified());
+            CHECK(vm::approx{bounds, vertexEpsilon} == sphere.bounds());
+
+            CHECK_THAT(
+              sphere.faces() | std::views::transform([](const auto& face) {
+                return face.materialName();
+              }),
+              RangeEquals(std::vector<std::string>{sphere.faceCount(), "someName"}));
+          })
+        | kdl::transform_error([](const auto& e) { FAIL(e); });
+    }
+
+    SECTION("scalable")
+    {
+      builder.createUvSphere(bounds, ScalableCircle{0}, 2, vm::axis::z, "someName")
+        | kdl::transform([&](const auto& sphere) {
+            CHECK(sphere.fullySpecified());
+            CHECK(vm::approx{bounds, vertexEpsilon} == sphere.bounds());
+          })
+        | kdl::transform_error([](const auto& e) { FAIL(e); });
+    }
+  }
+
+  SECTION("createIcoSphere")
+  {
+    auto builder = BrushBuilder{MapFormat::Standard, worldBounds};
+
+    const auto bounds = vm::bbox3d{{-32, -32, -32}, {32, 32, 32}};
+
+    // 1 is the least number of iterations sphereMesh accepts; the base icosahedron
+    // (0 iterations) is unreachable through this API, see BasicShapes.h
+    SECTION("with one iteration")
+    {
+      builder.createIcoSphere(bounds, 1, "someName")
+        | kdl::transform([&](const auto& sphere) {
+            CHECK(sphere.fullySpecified());
+            CHECK(vm::approx{bounds, vertexEpsilon} == sphere.bounds());
+
+            // every one of the icosahedron's 20 triangles is split into four
+            CHECK(sphere.faceCount() == 80u);
+          })
+        | kdl::transform_error([](const auto& e) { FAIL(e); });
+    }
+  }
+
+  SECTION("createBrush")
+  {
+    auto builder = BrushBuilder{MapFormat::Standard, worldBounds};
+
+    SECTION("from points")
+    {
+      builder.createBrush(
+        std::vector<vm::vec3d>{
+          {-64, -64, -64},
+          {-64, -64, +64},
+          {-64, +64, -64},
+          {-64, +64, +64},
+          {+64, -64, -64},
+          {+64, -64, +64},
+          {+64, +64, -64},
+          {+64, +64, +64},
+        },
+        "someName")
+        | kdl::transform([](const auto& brush) {
+            CHECK(brush.fullySpecified());
+            CHECK(brush.bounds() == vm::bbox3d{-64.0, +64.0});
+            CHECK(brush.faceCount() == 6u);
+          })
+        | kdl::transform_error([](const auto& e) { FAIL(e); });
+    }
+
+    SECTION("ignores points inside the hull")
+    {
+      builder.createBrush(
+        std::vector<vm::vec3d>{
+          {-64, -64, -64},
+          {-64, -64, +64},
+          {-64, +64, -64},
+          {-64, +64, +64},
+          {+64, -64, -64},
+          {+64, -64, +64},
+          {+64, +64, -64},
+          {+64, +64, +64},
+          {0, 0, 0},
+        },
+        "someName")
+        | kdl::transform([](const auto& brush) {
+            CHECK(brush.bounds() == vm::bbox3d{-64.0, +64.0});
+            CHECK(brush.faceCount() == 6u);
+          })
+        | kdl::transform_error([](const auto& e) { FAIL(e); });
+    }
+
+    SECTION("fails for a degenerate point set")
+    {
+      const auto points = GENERATE(
+        std::vector<vm::vec3d>{},
+        std::vector<vm::vec3d>{{0, 0, 0}},
+        std::vector<vm::vec3d>{{0, 0, 0}, {64, 0, 0}},
+        std::vector<vm::vec3d>{{0, 0, 0}, {64, 0, 0}, {0, 64, 0}});
+
+      CHECK(builder.createBrush(points, "someName").is_error());
+    }
+
+    SECTION("fails for an empty polyhedron")
+    {
+      CHECK(builder.createBrush(Polyhedron3{}, "someName").is_error());
     }
   }
 }

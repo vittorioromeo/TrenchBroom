@@ -19,7 +19,7 @@
 
 #include "mdl/GameManager.h"
 
-#include "Logger.h"
+#include "base/Logger.h"
 #include "fs/DiskFileSystem.h"
 #include "fs/DiskIO.h"
 #include "fs/PathInfo.h"
@@ -33,6 +33,7 @@
 #include "kd/const_overload.h"
 #include "kd/path_utils.h"
 #include "kd/result_fold.h"
+#include "kd/string_compare_natural.h"
 
 #include <algorithm>
 #include <iostream>
@@ -47,6 +48,26 @@ namespace
 const auto gameConfigFilename = "GameConfig.cfg";
 const auto compilationConfigFilename = "CompilationProfiles.cfg";
 const auto gameEngineConfigFilename = "GameEngineProfiles.cfg";
+
+struct LoadConfigError
+{
+  std::filesystem::path path;
+  std::string msg;
+};
+
+template <typename Value>
+using LoadConfigResult = kdl::result<Value, LoadConfigError>;
+
+template <typename Config>
+auto toLoadConfigResult(const auto& path)
+{
+  return kdl::or_else([=](auto e) {
+    return LoadConfigResult<Config>{LoadConfigError{
+      path,
+      std::move(e.msg),
+    }};
+  });
+}
 
 Result<std::unique_ptr<fs::WritableVirtualFileSystem>> createFileSystem(
   const std::vector<std::filesystem::path>& gameConfigSearchDirs,
@@ -90,7 +111,7 @@ Result<void> migrateConfigFiles(
   return Result<void>{};
 }
 
-Result<void> loadCompilationConfig(const fs::FileSystem& fs, GameInfo& gameInfo)
+LoadConfigResult<void> loadCompilationConfig(const fs::FileSystem& fs, GameInfo& gameInfo)
 {
   const auto path = gameInfo.gameConfig.configFileFolder() / compilationConfigFilename;
   if (fs.pathInfo(path) == fs::PathInfo::File)
@@ -99,6 +120,7 @@ Result<void> loadCompilationConfig(const fs::FileSystem& fs, GameInfo& gameInfo)
              auto reader = profilesFile->reader().buffer();
              return parseCompilationConfig(reader.stringView());
            })
+           | toLoadConfigResult<CompilationConfig>(path)
            | kdl::transform([&](auto compilationConfig) {
                gameInfo.compilationConfig = std::move(compilationConfig);
              })
@@ -106,10 +128,10 @@ Result<void> loadCompilationConfig(const fs::FileSystem& fs, GameInfo& gameInfo)
              [&](const auto&) { gameInfo.compilationConfigParseFailed = true; });
   }
 
-  return Result<void>{};
+  return LoadConfigResult<void>{};
 }
 
-Result<void> loadGameEngineConfig(const fs::FileSystem& fs, GameInfo& gameInfo)
+LoadConfigResult<void> loadGameEngineConfig(const fs::FileSystem& fs, GameInfo& gameInfo)
 {
   const auto path = gameInfo.gameConfig.configFileFolder() / gameEngineConfigFilename;
   if (fs.pathInfo(path) == fs::PathInfo::File)
@@ -118,6 +140,7 @@ Result<void> loadGameEngineConfig(const fs::FileSystem& fs, GameInfo& gameInfo)
              auto reader = profilesFile->reader().buffer();
              return parseGameEngineConfig(reader.stringView());
            })
+           | toLoadConfigResult<GameEngineConfig>(path)
            | kdl::transform([&](auto gameEngineConfig) {
                gameInfo.gameEngineConfig = std::move(gameEngineConfig);
              })
@@ -125,7 +148,7 @@ Result<void> loadGameEngineConfig(const fs::FileSystem& fs, GameInfo& gameInfo)
              [&](const auto&) { gameInfo.gameEngineConfigParseFailed = true; });
   }
 
-  return Result<void>{};
+  return LoadConfigResult<void>{};
 }
 
 Result<GameConfig> loadGameConfig(
@@ -147,13 +170,15 @@ Result<GameConfig> loadGameConfig(
            });
 }
 
-Result<GameInfo> loadGameInfo(
+LoadConfigResult<GameInfo> loadGameInfo(
   fs::FileSystem& fs,
   const std::filesystem::path& userGameDir,
   const std::filesystem::path& path,
-  std::vector<std::string>& warnings)
+  std::map<std::filesystem::path, std::string>& warnings)
 {
-  const auto saveWarning = [&](const auto& e) { warnings.push_back(e.msg); };
+  const auto saveWarning = [&](LoadConfigError e) {
+    warnings.emplace(std::move(e.path), std::move(e.msg));
+  };
 
   return loadGameConfig(fs, userGameDir, path) | kdl::transform([&](auto gameConfig) {
            auto gameInfo = makeGameInfo(std::move(gameConfig));
@@ -162,13 +187,14 @@ Result<GameInfo> loadGameInfo(
            loadGameEngineConfig(fs, gameInfo) | kdl::transform_error(saveWarning);
 
            return gameInfo;
-         });
+         })
+         | toLoadConfigResult<GameInfo>(path);
 }
 
 Result<std::vector<GameInfo>> loadGameInfos(
   fs::FileSystem& fs,
   const std::filesystem::path& userGameDir,
-  std::vector<std::string>& warnings)
+  std::map<std::filesystem::path, std::string>& warnings)
 {
   return fs.find(
            {},
@@ -180,6 +206,11 @@ Result<std::vector<GameInfo>> loadGameInfos(
                  return loadGameInfo(fs, userGameDir, configFilePath, warnings);
                })
                | kdl::collect();
+
+             for (auto error : errors)
+             {
+               warnings.emplace(std::move(error.path), std::move(error.msg));
+             }
 
              return std::move(gameInfos);
            });
@@ -291,9 +322,10 @@ GameManager::GameManager(
   : m_configFs{std::move(configFs)}
   , m_gameInfos{std::move(gameInfos)}
 {
-  std::ranges::sort(m_gameInfos, [](const auto& lhs, const auto& rhs) {
-    return lhs.gameConfig.name < rhs.gameConfig.name;
-  });
+  std::ranges::sort(
+    m_gameInfos, kdl::ci::string_less_natural{}, [](const auto& gameInfo) {
+      return gameInfo.gameConfig.name;
+    });
 }
 
 GameManager::GameManager(GameManager&&) noexcept = default;
@@ -355,13 +387,14 @@ Result<void> GameManager::updateGameEngineConfig(
   return Error{fmt::format("Unknown game: {}", gameName)};
 }
 
-Result<kdl::multi_value<GameManager, std::vector<std::string>>> initializeGameManager(
+Result<kdl::multi_value<GameManager, std::map<std::filesystem::path, std::string>>>
+initializeGameManager(
   const std::vector<std::filesystem::path>& gameConfigSearchDirs,
   const std::filesystem::path& userGameDir)
 {
   return createFileSystem(gameConfigSearchDirs, userGameDir)
          | kdl::and_then([&](auto fs) {
-             auto warnings = std::vector<std::string>{};
+             auto warnings = std::map<std::filesystem::path, std::string>{};
              return loadGameInfos(*fs, userGameDir, warnings)
                     | kdl::transform([&](auto gameInfos) {
                         return kdl::multi_value{

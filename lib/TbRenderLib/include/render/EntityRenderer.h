@@ -19,14 +19,14 @@
 
 #pragma once
 
-#include "Color.h"
+#include "base/Color.h"
 #include "gl/AttrString.h"
 #include "render/EdgeRenderer.h"
 #include "render/EntityModelRenderer.h"
 #include "render/Renderable.h"
 #include "render/TriangleRenderer.h"
 
-#include "kd/vector_set.h"
+#include "kd/flat_set.h"
 
 #include <vector>
 
@@ -50,7 +50,7 @@ class EntityRenderer
 private:
   mdl::EntityModelManager& m_entityModelManager;
   const mdl::EditorContext& m_editorContext;
-  kdl::vector_set<const mdl::EntityNode*> m_entities;
+  kdl::flat_set<const mdl::EntityNode*> m_entities;
 
   DirectEdgeRenderer m_pointEntityWireframeBoundsRenderer;
   DirectEdgeRenderer m_brushEntityWireframeBoundsRenderer;
@@ -130,7 +130,8 @@ public:
   void setShowHiddenEntities(bool showHiddenEntities);
 
 public: // rendering
-  void render(RenderContext& renderContext, RenderBatch& renderBatch);
+  void renderOpaque(RenderContext& renderContext, RenderBatch& renderBatch);
+  void renderTransparent(RenderContext& renderContext, RenderBatch& renderBatch);
 
 private:
   void renderBounds(RenderContext& renderContext, RenderBatch& renderBatch);
@@ -138,6 +139,7 @@ private:
   void renderBrushEntityWireframeBounds(RenderBatch& renderBatch);
   void renderSolidBounds(RenderBatch& renderBatch);
   void renderModels(RenderContext& renderContext, RenderBatch& renderBatch);
+  void renderTransparentModels(RenderContext& renderContext, RenderBatch& renderBatch);
   void renderClassnames(RenderContext& renderContext, RenderBatch& renderBatch);
   void renderAngles(RenderContext& renderContext, RenderBatch& renderBatch);
   std::vector<vm::vec3f> arrowHead(float length, float width) const;

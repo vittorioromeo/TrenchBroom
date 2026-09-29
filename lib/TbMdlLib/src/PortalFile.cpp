@@ -47,6 +47,7 @@ Result<std::vector<vm::polygon3f>> loadPortalFile(std::istream& stream)
   auto line = std::string{};
   auto numPortals = 0ul;
   auto prt1ForQ3 = false;
+  auto hasFirstPortalLine = false;
 
   // read header
   std::getline(stream, line);
@@ -57,11 +58,9 @@ Result<std::vector<vm::polygon3f>> loadPortalFile(std::istream& stream)
     std::getline(stream, line); // number of leafs (ignored)
     std::getline(stream, line); // number of portals
     numPortals = std::stoul(line);
-    const auto mark = stream.tellg();
     std::getline(stream, line);
-    // If this line contains a single value, it is Q3-style PRT1 (value is
-    // number of solid faces -- will ignore). Otherwise is Q1/Q2 style and we
-    // will rewind the stream to process this line accordingly.
+    // A single value is the Q3 solid face count. Otherwise this is the first
+    // Q1/Q2 portal, which we retain instead of seeking back in a text stream.
     const auto componentsCheck = kdl::str_split(line, lineSplitter);
     if (componentsCheck.size() == 1)
     {
@@ -69,7 +68,7 @@ Result<std::vector<vm::polygon3f>> loadPortalFile(std::istream& stream)
     }
     else
     {
-      stream.seekg(mark);
+      hasFirstPortalLine = true;
     }
   }
   else if (formatCode == "PRT2")
@@ -102,7 +101,10 @@ Result<std::vector<vm::polygon3f>> loadPortalFile(std::istream& stream)
 
   for (size_t i = 0; i < numPortals; ++i)
   {
-    std::getline(stream, line);
+    if (i != 0 || !hasFirstPortalLine)
+    {
+      std::getline(stream, line);
+    }
     const auto components = kdl::str_split(line, lineSplitter);
 
     if (!stream.good() || components.size() < 3)

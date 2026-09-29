@@ -18,8 +18,8 @@
  along with TrenchBroom. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "Logger.h"
 #include "TestEnvironment.h"
+#include "base/Logger.h"
 #include "fs/DiskFileSystem.h"
 #include "mdl/CatchConfig.h"
 #include "mdl/EntityModel.h"
@@ -67,6 +67,29 @@ TEST_CASE("loadAssimpModel")
       CHECK(modelData.value().surface(3).skinCount() == 1);
       CHECK(modelData.value().frameCount() == 3);
     }
+  }
+
+  SECTION("pitch type")
+  {
+    const auto [modelPath, expectedPitchType] =
+      GENERATE(table<std::filesystem::path, PitchType>({
+        {"cube/cube.mdl", PitchType::MdlInverted},
+        {"alignment/ase/cuboid.ase", PitchType::Normal},
+        {"alignment/obj/cuboid.obj", PitchType::Normal},
+        {"alignment/fbx/cuboid.fbx", PitchType::Normal},
+        {"alignment/gltf/cuboid.gltf", PitchType::Normal},
+        {"alignment/glb/cuboid.glb", PitchType::Normal},
+      }));
+
+    CAPTURE(modelPath);
+
+    const auto basePath = getFixtureRoot() / "test/mdl/LoadAssimpModel";
+    auto fs = fs::DiskFileSystem{basePath};
+
+    auto modelData = loadAssimpModel(modelPath, fs, logger);
+    REQUIRE(modelData);
+
+    CHECK(modelData.value().pitchType() == expectedPitchType);
   }
 
   SECTION("alignment")
@@ -120,6 +143,25 @@ TEST_CASE("loadAssimpModel")
 
     CHECK(hasTransparentPixel);
     CHECK(hasOpaquePixel);
+
+    // aiTexel carries real per-texel alpha alongside the chroma-key mask, so classify the
+    // actual resulting buffer rather than assuming a binary cutout
+    const auto hasIntermediateAlpha =
+      std::ranges::any_of(alphas, [](const auto a) { return a != 0 && a != 255; });
+
+    const auto* skin = modelData.value().surface(0).skin(0);
+    if (hasIntermediateAlpha)
+    {
+      CHECK(texture->alphaDomain() == img::ImageAlphaDomain::Graduated);
+      CHECK(!skin->effectiveAlphaFunc());
+      CHECK(
+        skin->effectiveBlendFunc().enable == gl::MaterialBlendFunc::Enable::UseFactors);
+    }
+    else
+    {
+      CHECK(texture->alphaDomain() == img::ImageAlphaDomain::Binary);
+      CHECK(skin->effectiveAlphaFunc());
+    }
   }
 
   SECTION("non ascii diffuse texture path")
@@ -150,6 +192,32 @@ TEST_CASE("loadAssimpModel")
     CHECK(modelData.value().surfaceCount() == 1);
     CHECK(modelData.value().surface(0).skinCount() == 1);
     CHECK(vm::approx(modelData.value().bounds(0)) == vm::bbox3f{{0, 0, 0}, {0, 1, 1}});
+  }
+
+  SECTION("diffuse texture with wrong extension")
+  {
+    // Regression test for https://github.com/TrenchBroom/TrenchBroom/issues/4725: the
+    // model refers to "texture.tga", but the actual file on the file system is a 5x5
+    // "texture.png". The texture must still be found by matching the base name.
+    const auto basePath =
+      getFixtureRoot() / "test/mdl/LoadAssimpModel/wrongTextureExtension";
+    auto fs = fs::DiskFileSystem{basePath};
+
+    auto modelData = loadAssimpModel("model.obj", fs, logger);
+    REQUIRE(modelData);
+
+    REQUIRE(modelData.value().surfaceCount() == 1);
+    REQUIRE(modelData.value().surface(0).skinCount() == 1);
+
+    const auto* texture = modelData.value().surface(0).skin(0)->texture();
+    REQUIRE(texture != nullptr);
+
+    const auto& buffers = texture->buffersIfLoaded();
+    REQUIRE(!buffers.empty());
+
+    // A 5x5 RGBA texture has 5 * 5 * 4 bytes. This confirms that "texture.png" was
+    // found and loaded instead of the 32x32 default fallback texture.
+    CHECK(buffers.front().size() == 5 * 5 * 4);
   }
 }
 

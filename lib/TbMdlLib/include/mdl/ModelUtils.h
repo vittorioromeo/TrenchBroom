@@ -23,9 +23,10 @@
 #include "mdl/HitType.h"
 #include "mdl/NodeTree.h"
 
+#include "kd/flat_map.h"
+
 #include "vm/bbox.h"
 
-#include <map>
 #include <vector>
 
 namespace tb::mdl
@@ -36,6 +37,7 @@ class Node;
 class GroupNode;
 class BrushNode;
 class EntityNode;
+class EntityNodeBase;
 class LayerNode;
 class EditorContext;
 
@@ -51,6 +53,14 @@ std::vector<LayerNode*> collectContainingLayersUserSorted(
 
 GroupNode* findContainingGroup(Node* node);
 const GroupNode* findContainingGroup(const Node* node);
+
+/**
+ * Returns the entity that owns the given node, i.e. the closest ancestor entity or
+ * world node, treating layers and groups as pass-through. Only brush and patch nodes
+ * can be owned by an entity; returns nullptr for every other node type.
+ */
+EntityNodeBase* findContainingEntity(Node* node);
+const EntityNodeBase* findContainingEntity(const Node* node);
 
 /**
  * Searches the ancestor chain of `node` for the outermost closed group and returns
@@ -82,7 +92,8 @@ std::vector<GroupNode*> collectGroups(const std::vector<Node*>& nodes);
 
 std::vector<GroupNode*> collectContainingGroups(const std::vector<Node*>& nodes);
 
-std::map<Node*, std::vector<Node*>> parentChildrenMap(const std::vector<Node*>& nodes);
+kdl::flat_map<Node*, std::vector<Node*>> parentChildrenMap(
+  const std::vector<Node*>& nodes);
 
 std::vector<Node*> collectTouchingNodes(
   const std::vector<Node*>& nodes, const std::vector<BrushNode*>& brushes);

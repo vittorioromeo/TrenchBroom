@@ -10,7 +10,6 @@ target_sources(TbMdlLib
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Brush.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/BrushBuilder.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/BrushFace.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/BrushFaceAttributes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/BrushFaceHandle.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/BrushFaceReader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/BrushFaceReference.cpp
@@ -67,9 +66,7 @@ target_sources(TbMdlLib
     ${CMAKE_CURRENT_SOURCE_DIR}/src/HitAdapter.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/HitFilter.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/HitType.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ImageLoader.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ImageLoaderImpl.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/InvalidUVScaleValidator.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/InvalidUvScaleValidator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Issue.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/IssueQuickFix.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/IssueType.cpp
@@ -87,8 +84,8 @@ target_sources(TbMdlLib
     ${CMAKE_CURRENT_SOURCE_DIR}/src/LoadEntityDefinitions.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/LoadEntityModel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/LoadFmModel.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/LoadFreeImageTexture.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/LoadImageSpriteModel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/LoadImageTexture.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/LoadM8Texture.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/LoadM32Texture.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/LoadMaterialCollections.cpp
@@ -148,8 +145,8 @@ target_sources(TbMdlLib
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ObjSerializer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Octree.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Palette.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ParallelUVCoordSystem.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ParaxialUVCoordSystem.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ParallelUvCoordSystem.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ParaxialUvCoordSystem.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ParseCompilationConfig.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ParseGameConfig.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ParseGameEngineConfig.cpp
@@ -189,6 +186,7 @@ target_sources(TbMdlLib
     ${CMAKE_CURRENT_SOURCE_DIR}/src/TerrainBrushes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/TerrainEntity.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/StandardMapParser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/SurfaceAttributes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/SwapNodeContentsCommand.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tag.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/TagAttribute.cpp
@@ -198,11 +196,13 @@ target_sources(TbMdlLib
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Transaction.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/UndoableCommand.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/UpdateBrushFaceAttributes.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/UvAlignment.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/UpdateLinkedGroupsCommand.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/UpdateLinkedGroupsCommandBase.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/UpdateLinkedGroupsHelper.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/UVCoordSystem.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/UVUtils.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/UvAttributes.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/UvCoordSystem.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/UvUtils.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Validator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ValidatorRegistry.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/VisualEffect.cpp
@@ -221,10 +221,11 @@ target_link_libraries(TbMdlLib
   PRIVATE
     CompilerConfig
     PrecompileStdHeaders
-    assimp::assimp
-    freeimage::FreeImage
-    miniz::miniz
+    assimp
+    miniz
     tinyxml2::tinyxml2
+    TbImgLib
+    TbVersionLib
   PUBLIC
     fmt::fmt-header-only
     KdLib

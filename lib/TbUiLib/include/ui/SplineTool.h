@@ -19,8 +19,8 @@
 
 #pragma once
 
-#include "Notifier.h"
-#include "NotifierConnection.h"
+#include "base/Notifier.h"
+#include "base/NotifierConnection.h"
 #include "mdl/Brush.h"
 #include "mdl/HitType.h"
 #include "mdl/Spline.h"
@@ -352,8 +352,6 @@ private:
 private:
   bool doActivate() override;
   bool doDeactivate() override;
-
-  QWidget* doCreatePage(QWidget* parent) override;
 
   void connectObservers();
   void nodesWereAdded(const std::vector<mdl::Node*>& nodes);

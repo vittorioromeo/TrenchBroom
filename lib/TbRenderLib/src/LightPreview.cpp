@@ -717,7 +717,7 @@ void LightPreview::renderOverlay(RenderContext& renderContext, gl::VboManager& v
 
   if (!m_quad)
   {
-    using Vertex = gl::VertexTypes::P2UV2::Vertex;
+    using Vertex = gl::VertexTypes::P2Uv2::Vertex;
 
     // The quad is written straight in clip space, so the preview covers the view whatever
     // transformation the scene was drawn with.

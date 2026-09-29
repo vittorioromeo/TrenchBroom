@@ -32,7 +32,7 @@
 #include <QTimer>
 #include <QToolButton>
 
-#include "Macros.h"
+#include "base/Macros.h"
 #include "mdl/EntityNodeBase.h" // IWYU pragma: keep
 #include "mdl/Map.h"
 #include "mdl/Map_Entities.h"
@@ -50,9 +50,9 @@
 #include "ui/ViewConstants.h"
 
 #include "kd/contracts.h"
+#include "kd/flat_set.h"
 #include "kd/ranges/to.h"
 #include "kd/string_format.h"
-#include "kd/vector_set.h"
 #include "kd/vector_utils.h"
 
 #include <algorithm>
@@ -189,7 +189,7 @@ bool EntityPropertyGrid::canRemoveSelectedProperties() const
  */
 std::vector<int> EntityPropertyGrid::selectedRowsAndCursorRow() const
 {
-  auto result = kdl::vector_set<int>{};
+  auto result = kdl::flat_set<int>{};
 
   auto* selection = m_table->selectionModel();
 
@@ -210,7 +210,7 @@ std::vector<int> EntityPropertyGrid::selectedRowsAndCursorRow() const
     }
   }
 
-  return result.release_data();
+  return result.extract();
 }
 
 class EntitySortFilterProxyModel : public QSortFilterProxyModel

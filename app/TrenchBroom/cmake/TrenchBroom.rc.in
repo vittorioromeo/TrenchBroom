@@ -1,7 +1,11 @@
-#include "@CMAKE_BINARY_DIR@/lib/TbUiLib/generated/ui/Version.h"
+#include "@CMAKE_BINARY_DIR@/lib/TbVersionLib/generated/version/Version.h"
 
 AAAAAAAA                ICON                    "@TB_RESOURCE_DIR@/win32/icons/AppIcon.ico"
 APPICON                 ICON                    "@TB_RESOURCE_DIR@/win32/icons/DocIcon.ico"
+
+// Embed the application manifest (sets the process active code page to UTF-8; see
+// cmake/Utf8CodePage.manifest.in). 1 = CREATEPROCESS_MANIFEST_RESOURCE_ID, 24 = RT_MANIFEST.
+1                       24                      "@TB_UTF8_MANIFEST_PATH@"
 
 1 VERSIONINFO
  FILEVERSION VERSION_WIN_RC

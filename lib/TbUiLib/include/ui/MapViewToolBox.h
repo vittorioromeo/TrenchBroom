@@ -19,7 +19,7 @@
 
 #pragma once
 
-#include "NotifierConnection.h"
+#include "base/NotifierConnection.h"
 #include "ui/ToolBox.h"
 
 #include "vm/vec.h"
@@ -27,6 +27,7 @@
 #include <memory>
 
 class QStackedLayout;
+class QWidget;
 
 namespace tb
 {
@@ -45,6 +46,7 @@ class MapDocument;
 class MoveObjectsTool;
 class ExtrudeTool;
 class RotateTool;
+class SweepTool;
 class ScaleTool;
 class ShearTool;
 class VertexTool;
@@ -58,6 +60,7 @@ class MapViewToolBox : public ToolBox
 {
 private:
   MapDocument& m_document;
+  QStackedLayout* m_bookCtrl = nullptr;
 
   std::unique_ptr<ClipTool> m_clipTool;
   std::unique_ptr<AssembleBrushTool> m_assembleBrushTool;
@@ -66,6 +69,7 @@ private:
   std::unique_ptr<MoveObjectsTool> m_moveObjectsTool;
   std::unique_ptr<ExtrudeTool> m_extrudeTool;
   std::unique_ptr<RotateTool> m_rotateTool;
+  std::unique_ptr<SweepTool> m_sweepTool;
   std::unique_ptr<ScaleTool> m_scaleTool;
   std::unique_ptr<ShearTool> m_shearTool;
   std::unique_ptr<VertexTool> m_vertexTool;
@@ -74,6 +78,15 @@ private:
   std::unique_ptr<ControlPointTool> m_controlPointTool;
   std::unique_ptr<SplineTool> m_splineTool;
   std::unique_ptr<TerrainTool> m_terrainTool;
+
+  QWidget* m_emptyToolPage = nullptr;
+  QWidget* m_rotateToolPage = nullptr;
+  QWidget* m_sweepToolPage = nullptr;
+  QWidget* m_splineToolPage = nullptr;
+  QWidget* m_terrainToolPage = nullptr;
+  QWidget* m_scaleToolPage = nullptr;
+  QWidget* m_controlPointToolPage = nullptr;
+  QWidget* m_drawShapeToolPage = nullptr;
 
   NotifierConnection m_notifierConnection;
 
@@ -102,6 +115,9 @@ public: // tools
 
   const RotateTool& rotateTool() const;
   RotateTool& rotateTool();
+
+  const SweepTool& sweepTool() const;
+  SweepTool& sweepTool();
 
   const ScaleTool& scaleTool() const;
   ScaleTool& scaleTool();
@@ -146,6 +162,14 @@ public: // tools
   vm::vec3d rotateToolCenter() const;
   void moveRotationCenter(const vm::vec3d& delta);
 
+  bool canToggleSweepTool() const;
+  void toggleSweepTool();
+  bool sweepToolActive() const;
+  void moveSweepCenter(const vm::vec3d& delta);
+  void rotateSweepCap(const vm::vec3d& axis, double angle);
+  void scaleSweepCap(double distance);
+  void performSweep();
+
   bool canToggleScaleTool() const;
   void toggleScaleTool();
   bool scaleToolActive() const;
@@ -188,7 +212,6 @@ private: // Tool related methods
   void createTools(QStackedLayout* bookCtrl);
 
 private: // notification
-  void registerTool(Tool& tool, QStackedLayout* bookCtrl);
   void connectObservers();
   void toolActivated(Tool& tool);
   void toolDeactivated(Tool& tool);

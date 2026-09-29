@@ -1,4 +1,5 @@
 add_executable(TbMdlLibTest)
+EMBED_UTF8_MANIFEST(TbMdlLibTest)
 
 target_sources(TbMdlLibTest PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_AssetUtils.cpp
@@ -9,6 +10,7 @@ target_sources(TbMdlLibTest PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_BrushFace.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_BrushNode.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_CommandProcessor.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_CompareHits.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_CompilationConfig.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_DecalDefinition.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_DefParser.cpp
@@ -21,6 +23,7 @@ target_sources(TbMdlLibTest PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_EntityDefinitionUtils.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_EntityLinkManager.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_EntityModel.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_EntityModelManager.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_EntityNode.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_EntityRotation.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_EntParser.cpp
@@ -30,6 +33,8 @@ target_sources(TbMdlLibTest PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_Grid.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_Group.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_GroupNode.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_Hit.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_HitFilter.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_Issue.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_Layer.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_LayerNode.cpp
@@ -38,13 +43,16 @@ target_sources(TbMdlLibTest PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_LoadAssimpModel.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_LoadBspModel.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_LoadDdsTexture.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_LoadDkmModel.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_LoadFmModel.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_LoadFreeImageTexture.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_LoadImageTexture.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_LoadM8Texture.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_LoadM32Texture.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_LoadMaterialCollections.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_LoadMd2Model.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_LoadMd3Model.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_LoadMdlModel.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_LoadMdxModel.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_LoadMipTexture.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_LoadSpriteModel.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_LoadWalTexture.cpp
@@ -69,6 +77,7 @@ target_sources(TbMdlLibTest PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_Map_TagManagement.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_Map_World.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_Map.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_MapFormat.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_MapHeader.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_MapSidecar.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_MaterialUtils.cpp
@@ -89,6 +98,7 @@ target_sources(TbMdlLibTest PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_ParseGameEngineConfig.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_PatchNode.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_PatchUtils.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_PickResult.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_PointTrace.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_Polyhedron.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_PortalFile.cpp
@@ -105,10 +115,12 @@ target_sources(TbMdlLibTest PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_Tagging.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_Transaction.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_UpdateBrushFaceAttributes.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_UvAlignment.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_UpdateLinkedGroupsCommand.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_UpdateLinkedGroupsHelper.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_UVCoordSystem.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_UVUtils.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_UvAttributes.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_UvCoordSystem.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_UvUtils.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_Validation.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_WadPropertyUtils.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_WorldNode.cpp
@@ -127,6 +139,7 @@ target_link_libraries(TbMdlLibTest
     TbFsTestUtilsLib
     TbMdlLib
     TbMdlTestUtilsLib
+    TbVersionLib
 )
 
 # Copy fixtures

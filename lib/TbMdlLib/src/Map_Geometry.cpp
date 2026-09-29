@@ -19,7 +19,7 @@
 
 #include "mdl/Map_Geometry.h"
 
-#include "Logger.h"
+#include "base/Logger.h"
 #include "mdl/AddRemoveNodesCommand.h"
 #include "mdl/ApplyAndSwap.h"
 #include "mdl/BrushBuilder.h"
@@ -48,6 +48,7 @@
 #include "mdl/Transaction.h"
 #include "mdl/WorldNode.h"
 
+#include "kd/flat_map.h"
 #include "kd/overload.h"
 #include "kd/ranges/as_rvalue_view.h"
 #include "kd/ranges/to.h"
@@ -653,7 +654,8 @@ bool csgConvexMerge(Map& map)
   const auto builder = BrushBuilder{
     map.worldNode().mapFormat(),
     map.worldBounds(),
-    map.gameInfo().gameConfig.faceAttribsConfig.defaults};
+    map.gameInfo().gameConfig.faceAttribsConfig.defaultUvAttributes,
+    map.gameInfo().gameConfig.faceAttribsConfig.defaultSurfaceAttributes};
   return builder.createBrush(polyhedron, map.currentMaterialName())
          | kdl::transform([&](auto b) {
              b.cloneFaceAttributesFrom(
@@ -667,25 +669,17 @@ bool csgConvexMerge(Map& map)
 
              // We could be merging brushes that have different parents; use the parent
              // of the first brush.
-             auto* parentNode = static_cast<Node*>(nullptr);
-             if (!map.selection().brushes.empty())
-             {
-               parentNode = map.selection().brushes.front()->parent();
-             }
-             else if (!map.selection().brushFaces.empty())
-             {
-               parentNode = map.selection().brushFaces.front().node()->parent();
-             }
-             else
-             {
-               parentNode = parentForNodes(map);
-             }
+             auto& parentNode = !map.selection().brushes.empty()
+                                  ? *map.selection().brushes.front()->parent()
+                                : !map.selection().brushFaces.empty()
+                                  ? *map.selection().brushFaces.front().node()->parent()
+                                  : parentForNodes(map);
 
              auto* brushNode = new BrushNode{std::move(b)};
 
              auto transaction = Transaction{map, "CSG Convex Merge"};
              deselectAll(map);
-             if (addNodes(map, {{parentNode, {brushNode}}}).empty())
+             if (addNodes(map, {{&parentNode, {brushNode}}}).empty())
              {
                transaction.cancel();
                return;
@@ -718,7 +712,7 @@ bool csgSubtract(Map& map)
                              })
                            | kdl::ranges::to<std::vector>();
 
-  auto toAdd = std::map<Node*, std::vector<Node*>>{};
+  auto toAdd = kdl::flat_map<Node*, std::vector<Node*>>{};
   auto toRemove =
     std::vector<Node*>{std::begin(subtrahendNodes), std::end(subtrahendNodes)};
 
@@ -795,7 +789,7 @@ bool csgIntersect(Map& map)
   if (valid)
   {
     auto* intersectionNode = new BrushNode{std::move(intersection)};
-    if (addNodes(map, {{parentForNodes(map, toRemove), {intersectionNode}}}).empty())
+    if (addNodes(map, {{&parentForNodes(map, toRemove), {intersectionNode}}}).empty())
     {
       transaction.cancel();
       return false;
@@ -820,7 +814,7 @@ bool csgHollow(Map& map)
   }
 
   bool didHollowAnything = false;
-  auto toAdd = std::map<Node*, std::vector<Node*>>{};
+  auto toAdd = kdl::flat_map<Node*, std::vector<Node*>>{};
   auto toRemove = std::vector<Node*>{};
 
   for (auto* brushNode : brushNodes)

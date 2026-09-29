@@ -19,7 +19,7 @@
 
 #include "mdl/MaterialUtils.h"
 
-#include "Logger.h"
+#include "base/Logger.h"
 #include "fs/FileSystem.h"
 #include "fs/PathInfo.h"
 #include "fs/TraversalMode.h"
@@ -27,13 +27,16 @@
 #include "gl/Texture.h"
 #include "gl/TextureBuffer.h"
 #include "gl/TextureResource.h"
-#include "mdl/LoadFreeImageTexture.h"
+#include "mdl/LoadImageTexture.h"
 
 #include "kd/functional.h"
 #include "kd/path_utils.h"
 #include "kd/reflection_impl.h"
 #include "kd/set_temp.h"
 #include "kd/string_compare.h"
+
+#include <fmt/format.h>
+#include <fmt/std.h>
 
 namespace tb::mdl
 {
@@ -62,9 +65,13 @@ Result<std::filesystem::path> findMaterialFile(
     return materialPath;
   }
 
+  const auto makeNotFoundError = [&]() {
+    return Error{fmt::format("Could not find material file '{}'", materialPath)};
+  };
+
   if (fs.pathInfo(materialPath.parent_path()) != fs::PathInfo::Directory)
   {
-    return materialPath;
+    return makeNotFoundError();
   }
 
   const auto matcher = kdl::logical_and(
@@ -73,8 +80,12 @@ Result<std::filesystem::path> findMaterialFile(
     extensionMatcher);
 
   return fs.find(materialPath.parent_path(), fs::TraversalMode::Flat, matcher)
-         | kdl::transform([&](const auto& candidates) {
-             return !candidates.empty() ? candidates.front() : materialPath;
+         | kdl::and_then([&](const auto& candidates) -> Result<std::filesystem::path> {
+             if (candidates.empty())
+             {
+               return makeNotFoundError();
+             }
+             return candidates.front();
            });
 }
 
@@ -91,9 +102,9 @@ size_t mipSize(const size_t width, const size_t height, const size_t mipLevel)
 
 kdl_reflect_impl(ReadMaterialError);
 
-gl::TextureMask getTextureMaskFromName(std::string_view name)
+bool isMaskedTextureName(std::string_view name)
 {
-  return kdl::cs::str_is_prefix(name, "{") ? gl::TextureMask::On : gl::TextureMask::Off;
+  return kdl::cs::str_is_prefix(name, "{");
 }
 
 gl::Texture loadDefaultTexture(const fs::FileSystem& fs, Logger& logger)
@@ -106,7 +117,7 @@ gl::Texture loadDefaultTexture(const fs::FileSystem& fs, Logger& logger)
 
     return fs.openFile(DefaultTexturePath) | kdl::and_then([&](auto file) {
              auto reader = file->reader().buffer();
-             return loadFreeImageTexture(reader);
+             return loadImageTexture(reader);
            })
            | kdl::transform_error([&](auto e) {
                logger.error() << "Could not load default texture: " << e.msg;

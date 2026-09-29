@@ -19,12 +19,15 @@
 
 #pragma once
 
-#include "Color.h"
-#include "Macros.h"
+#include "base/Color.h"
+#include "base/Macros.h"
+#include "gl/MiniGl.h"
 #include "mdl/BrushGeometry.h"
 #include "render/AllocationTracker.h"
 #include "render/EdgeRenderer.h"
 #include "render/FaceRenderer.h"
+
+#include "vm/vec.h"
 
 #include <memory>
 #include <tuple>
@@ -48,6 +51,19 @@ class EditorContext;
 
 namespace render
 {
+
+/**
+ * The number of GLuint indices needed to render a fan-triangulated polygon with the
+ * given number of vertices.
+ */
+size_t triIndicesCountForPolygon(size_t vertexCount);
+
+/**
+ * Writes fan-triangulated indices for a polygon of the given vertex count into `dest`
+ * (which must have room for triIndicesCountForPolygon(vertexCount) elements), with
+ * vertex indices starting at `baseIndex`.
+ */
+void addTriIndicesForPolygon(GLuint* dest, GLuint baseIndex, size_t vertexCount);
 
 class BrushRenderer
 {
@@ -126,14 +142,25 @@ public:
 private:
   std::unique_ptr<Filter> m_filter;
 
+  /**
+   * A (brush, material) group of transparent face indices, plus a world-space position
+   * used to sort this group against every other transparent group by distance to the
+   * camera. See FaceRenderer's sorted-draw mode.
+   */
+  struct TransparentFaceIndicesKey
+  {
+    const gl::Material* material;
+    AllocationTracker::Block* block;
+    vm::vec3f sortPosition;
+  };
+
   struct BrushInfo
   {
     AllocationTracker::Block* vertexHolderKey;
     AllocationTracker::Block* edgeIndicesKey;
     std::vector<std::pair<const gl::Material*, AllocationTracker::Block*>>
       opaqueFaceIndicesKeys;
-    std::vector<std::pair<const gl::Material*, AllocationTracker::Block*>>
-      transparentFaceIndicesKeys;
+    std::vector<TransparentFaceIndicesKey> transparentFaceIndicesKeys;
   };
   /**
    * Tracks all brushes that are stored in the VBO, with the information necessary to
@@ -145,7 +172,7 @@ private:
    * If a brush is in the VBO, it's always valid.
    * If a brush is valid, it might not be in the VBO if it was hidden by the Filter.
    *
-   * Do not attempt to use vector_set here, it turns out to be slower.
+   * Do not attempt to use a sorted vector here, it turns out to be slower.
    */
   std::unordered_set<const mdl::BrushNode*> m_allBrushes;
   std::unordered_set<const mdl::BrushNode*> m_invalidBrushes;
@@ -295,8 +322,17 @@ public:
 
 private:
   bool shouldDrawFaceInTransparentPass(
-    const mdl::BrushNode& brushNode, const mdl::BrushFace& face) const;
+    const mdl::BrushNode& brushNode,
+    const mdl::BrushFace& face,
+    const gl::Material* material) const;
   void validateBrush(const mdl::BrushNode& brushNode);
+
+  /**
+   * Flattens every live transparent (brush, material) group across m_brushInfo into a
+   * single list for FaceRenderer's sorted-draw mode. Only needs recomputing when brush
+   * geometry changes (i.e. here, after validate()), not every frame.
+   */
+  std::shared_ptr<std::vector<TransparentDrawItem>> collectTransparentDrawItems() const;
 
 public:
   /**

@@ -32,6 +32,29 @@
 namespace tb::render
 {
 
+namespace
+{
+
+size_t dirtyRangeEnd(const DirtyRange& dirtyRange)
+{
+  return dirtyRange.pos + dirtyRange.size;
+}
+
+DirtyRange mergeDirtyRanges(const std::optional<DirtyRange>& lhs, const DirtyRange& rhs)
+{
+  if (lhs)
+  {
+    const auto newPos = std::min(lhs->pos, rhs.pos);
+    const auto newEnd = std::max(dirtyRangeEnd(*lhs), dirtyRangeEnd(rhs));
+
+    return DirtyRange{newPos, newEnd - newPos};
+  }
+
+  return rhs;
+}
+
+} // namespace
+
 // DirtyRangeTracker
 
 DirtyRangeTracker::DirtyRangeTracker(size_t initial_capacity)
@@ -66,16 +89,15 @@ void DirtyRangeTracker::markDirty(const size_t pos, const size_t size)
     throw std::invalid_argument{"markDirty provided range out of bounds"};
   }
 
-  const auto newPos = std::min(pos, m_dirtyPos);
-  const auto newEnd = std::max(pos + size, m_dirtyPos + m_dirtySize);
-
-  m_dirtyPos = newPos;
-  m_dirtySize = newEnd - newPos;
+  if (size > 0)
+  {
+    m_dirtyRange = mergeDirtyRanges(m_dirtyRange, DirtyRange{pos, size});
+  }
 }
 
 bool DirtyRangeTracker::clean() const
 {
-  return m_dirtySize == 0;
+  return m_dirtyRange == std::nullopt;
 }
 
 // IndexHolder
@@ -181,6 +203,15 @@ void BrushIndexArray::render(gl::Gl& gl, const gl::PrimType primType) const
   contract_pre(m_indexHolder.prepared());
 
   m_indexHolder.render(gl, primType, 0, m_indexHolder.size());
+}
+
+void BrushIndexArray::render(
+  gl::Gl& gl, const gl::PrimType primType, const size_t offset, const size_t count) const
+{
+  contract_pre(m_indexHolder.prepared());
+  contract_pre(offset + count <= m_indexHolder.size());
+
+  m_indexHolder.render(gl, primType, offset, count);
 }
 
 // BrushVertexArray

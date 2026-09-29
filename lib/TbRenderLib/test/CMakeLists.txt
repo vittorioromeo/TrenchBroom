@@ -1,10 +1,29 @@
 add_executable(TbRenderLibTest)
+EMBED_UTF8_MANIFEST(TbRenderLibTest)
 
 target_sources(TbRenderLibTest PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/TestUtils.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/TestUtils.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_AllocationTracker.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_LightPreviewBvh.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_LightPreviewLights.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_LightPreviewTracer.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_BoundsGuideRenderer.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_BrushRenderer.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_BrushRendererArrays.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_Circle.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_Compass.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_EntityLinkRenderer.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_GridRenderer.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_GroupLinkRenderer.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_LinkRenderer.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_PointGuideRenderer.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_RenderBatch.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_RenderContext.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_SelectionBoundsRenderer.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_SpikeGuideRenderer.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_TextAnchor.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tst_Transformation.cpp
 )
 
 add_compile_definitions(CATCH_CONFIG_ENABLE_ALL_STRINGMAKERS=1)
@@ -16,6 +35,9 @@ target_link_libraries(TbRenderLibTest
     Catch2::Catch2WithMain
     TbBaseTestUtilsLib
     TbMdlTestUtilsLib
+    TbGlTestUtilsLib
+    TbMdlTestUtilsLib
+    TbPreferencesLib
     TbRenderLib
   )
 

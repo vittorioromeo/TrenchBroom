@@ -19,7 +19,7 @@
 
 #include "mdl/LoadMaterialCollections.h"
 
-#include "Logger.h"
+#include "base/Logger.h"
 #include "fs/FileSystem.h"
 #include "fs/PathInfo.h"
 #include "fs/PathMatcher.h"
@@ -29,7 +29,8 @@
 #include "gl/Texture.h"
 #include "gl/TextureResource.h"
 #include "mdl/GameConfig.h"
-#include "mdl/LoadFreeImageTexture.h"
+#include "mdl/LoadImageTexture.h"
+#include "mdl/LoadMipTexture.h"
 #include "mdl/LoadShaders.h"
 #include "mdl/LoadTexture.h"
 #include "mdl/MaterialUtils.h"
@@ -46,6 +47,7 @@
 #include "kd/result.h"
 #include "kd/result_fold.h"
 #include "kd/string_compare.h"
+#include "kd/string_compare_natural.h"
 #include "kd/string_format.h"
 #include "kd/vector_utils.h"
 
@@ -199,10 +201,7 @@ Result<gl::Material> loadShaderMaterial(
            return [&, path = std::move(path_)]() {
              return fs.openFile(path) | kdl::and_then([&](auto file) {
                       auto reader = file->reader().buffer();
-                      return loadFreeImageTexture(reader).transform([](auto texture) {
-                        texture.setMask(gl::TextureMask::Off);
-                        return texture;
-                      });
+                      return loadImageTexture(reader);
                     });
            };
          })
@@ -244,6 +243,15 @@ Result<gl::Material> loadShaderMaterial(
                {
                  material.disableBlend();
                }
+             }
+
+             const auto& alphaFunc =
+               !shader.stages.empty() && shader.stages.front().alphaFunc
+                 ? shader.stages.front().alphaFunc
+                 : shader.qerAlphaFunc;
+             if (alphaFunc)
+             {
+               material.setAlphaFunc(alphaFunc->compare, alphaFunc->threshold);
              }
 
              return material;
@@ -294,7 +302,18 @@ Result<gl::Material> loadTextureMaterial(
   auto textureLoader =
     makeTextureResourceLoader(texturePath, name, materialConfig.extensions, fs, palette);
   auto textureResource = createResource(std::move(textureLoader));
-  return gl::Material{std::move(name), std::move(textureResource)};
+
+  // For the classic id-tech miptex formats, the `{`-prefixed fence-texture naming
+  // convention is known from the name alone, so the alpha-test decision can be set here
+  // rather than waiting for the (lazily loaded) texture to become ready.
+  const auto isMasked = isMipTexture(texturePath) && isMaskedTextureName(name);
+
+  auto material = gl::Material{std::move(name), std::move(textureResource)};
+  if (isMasked)
+  {
+    material.setAlphaFunc(gl::MaterialAlphaFunc::Compare::GreaterEqual, 0.5f);
+  }
+  return material;
 }
 
 std::string materialCollectionName(
@@ -331,11 +350,12 @@ std::string materialCollectionName(
 std::vector<gl::MaterialCollection> groupMaterialsIntoCollections(
   std::vector<gl::Material> materials)
 {
-  materials = kdl::vec_sort(std::move(materials), [&](const auto& lhs, const auto& rhs) {
-    return lhs.collectionName() < rhs.collectionName()   ? true
-           : lhs.collectionName() > rhs.collectionName() ? false
-                                                         : lhs.name() < rhs.name();
-  });
+  // Natural comparison folds case and skips whitespace, so distinct names such as
+  // "base 1.wad" and "base1.wad" can compare equal. string_less_natural breaks such
+  // ties by exact name, which keeps equal collection names adjacent. Otherwise, the
+  // chunk_by below could split one collection into several.
+  std::ranges::sort(
+    materials, kdl::ci::string_less_natural{}, &gl::Material::collectionName);
 
   return materials | kdl::views::chunk_by([&](const auto& lhs, const auto& rhs) {
            return lhs.collectionName() == rhs.collectionName();

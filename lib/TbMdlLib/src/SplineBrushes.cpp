@@ -23,7 +23,7 @@
 #include "mdl/Brush.h"
 #include "mdl/BrushBuilder.h"
 #include "mdl/BrushFace.h"
-#include "mdl/UVCoordSystem.h"
+#include "mdl/UvCoordSystem.h"
 
 #include "kd/result.h"
 
@@ -211,8 +211,10 @@ void copyFaceAttributes(
     // count changes, which is what it counts.
     face.setMaterial(const_cast<gl::Material*>(alignment.material()));
 
-    face.setAttributes(alignment.attributes());
-    if (const auto snapshot = alignment.takeUVCoordSystemSnapshot())
+    face.setMaterialName(alignment.materialName());
+    face.setUvAttributes(alignment.uvAttributes()) | kdl::ignore();
+    face.setSurfaceAttributes(alignment.surfaceAttributes());
+    if (const auto snapshot = alignment.takeUvCoordSystemSnapshot())
     {
       // Wrap the source face's UV coordinate system onto this face's plane; for UV
       // coordinate systems without a snapshot (paraxial), the attributes copied above
@@ -220,9 +222,9 @@ void copyFaceAttributes(
       //
       // Locked, the axes are turned onto the new plane rather than reprojected, since
       // turning them is what a rigid placement does.
-      face.copyUVCoordSystemFromFace(
+      face.copyUvCoordSystemFromFace(
         *snapshot,
-        alignment.attributes(),
+        alignment.uvAttributes(),
         alignment.boundary(),
         uvMode == SplineUVMode::Lock ? WrapStyle::Rotation : WrapStyle::Projection);
     }
@@ -307,10 +309,9 @@ Result<std::vector<std::vector<Brush>>> createSplineBrushCopies(
       const auto templateFaces =
         placeTemplateFaces(*templateBrush, uvTransform, rigidTransform);
 
-      const auto materialName =
-        !templateBrush->faces().empty()
-          ? templateBrush->faces().front().attributes().materialName()
-          : "";
+      const auto materialName = !templateBrush->faces().empty()
+                                  ? templateBrush->faces().front().materialName()
+                                  : "";
 
       for (const auto& face : templateBrush->faces())
       {

@@ -19,10 +19,12 @@
 
 #include "Observer.h"
 #include "fs/TestEnvironment.h"
+#include "gl/MaterialCollection.h"
 #include "gl/MaterialManager.h"
 #include "mdl/BrushFace.h" // IWYU pragma: keep
 #include "mdl/BrushNode.h"
 #include "mdl/CatchConfig.h"
+#include "mdl/GameConfigFixture.h"
 #include "mdl/LayerNode.h"
 #include "mdl/Map.h"
 #include "mdl/MapFixture.h"
@@ -230,6 +232,86 @@ TEST_CASE("Map_Assets")
     }
   }
 
+  SECTION("Material collections are ordered naturally")
+  {
+    auto env = fs::TestEnvironment{};
+    env.createDirectory("textures");
+    for (const auto* name : {"tex10", "tex9", "tex2"})
+    {
+      env.createDirectory("textures/" + std::string{name});
+      env.createFile("textures/" + std::string{name} + "/a.png", "a");
+    }
+
+    auto gameConfig = DefaultGameInfo.gameConfig;
+    gameConfig.materialConfig.extensions = {".png"};
+    gameConfig.materialConfig.palette = std::filesystem::path{};
+
+    auto fixtureConfig = MapFixtureConfig{};
+    fixtureConfig.gameInfo = detail::makeGameInfoFixture(gameConfig, env.dir());
+
+    auto& map = fixture.create(fixtureConfig);
+
+    REQUIRE(map.materialManager().collections().size() == 3);
+
+    // A plain lexicographic sort would order these as tex10, tex2, tex9.
+    CHECK(
+      enabledMaterialCollections(map)
+      == std::vector<std::filesystem::path>{
+        "textures/tex2",
+        "textures/tex9",
+        "textures/tex10",
+      });
+
+    setEntityProperty(
+      map, EntityPropertyKeys::TbEnabledMaterialCollections, "textures/tex9");
+
+    CHECK(
+      disabledMaterialCollections(map)
+      == std::vector<std::filesystem::path>{
+        "textures/tex2",
+        "textures/tex10",
+      });
+  }
+
+  SECTION("Nested material collections are ordered naturally")
+  {
+    // A digit run can never straddle a path separator, so natural order still compares
+    // "tex2" against "tex10" directly even though they are followed by differently
+    // numbered subfolders - nesting depth does not throw off the comparison.
+    auto env = fs::TestEnvironment{};
+    env.createDirectory("textures");
+    for (const auto* name : {"tex10", "tex9", "tex2"})
+    {
+      env.createDirectory("textures/" + std::string{name});
+      env.createFile("textures/" + std::string{name} + "/a.png", "a");
+    }
+    env.createDirectory("textures/tex10/folder2");
+    env.createFile("textures/tex10/folder2/a.png", "a");
+    env.createDirectory("textures/tex2/folder10");
+    env.createFile("textures/tex2/folder10/a.png", "a");
+
+    auto gameConfig = DefaultGameInfo.gameConfig;
+    gameConfig.materialConfig.extensions = {".png"};
+    gameConfig.materialConfig.palette = std::filesystem::path{};
+
+    auto fixtureConfig = MapFixtureConfig{};
+    fixtureConfig.gameInfo = detail::makeGameInfoFixture(gameConfig, env.dir());
+
+    auto& map = fixture.create(fixtureConfig);
+
+    REQUIRE(map.materialManager().collections().size() == 5);
+
+    CHECK(
+      enabledMaterialCollections(map)
+      == std::vector<std::filesystem::path>{
+        "textures/tex2",
+        "textures/tex2/folder10",
+        "textures/tex9",
+        "textures/tex10",
+        "textures/tex10/folder2",
+      });
+  }
+
   SECTION("setEnabledMaterialCollections")
   {
     auto& map = fixture.create(Quake2FixtureConfig);
@@ -324,9 +406,8 @@ TEST_CASE("Map_Assets")
 
     REQUIRE(faces.size() == 4);
     REQUIRE_THAT(
-      faces | std::views::transform([](const auto* face) {
-        return face->attributes().materialName();
-      }),
+      faces
+        | std::views::transform([](const auto* face) { return face->materialName(); }),
       RangeEquals(std::vector<std::string>{
         "b_pv_v1a1", "e1m1/b_pv_v1a2", "e1m1/f1/b_rc_v4", "lavatest"}));
 
@@ -339,6 +420,31 @@ TEST_CASE("Map_Assets")
 
     CHECK(std::ranges::none_of(
       faces, [](const auto* face) { return face->material() == nullptr; }));
+  }
+
+  SECTION("reloadMaterialCollections picks up materials added to disk")
+  {
+    auto env = fs::TestEnvironment{};
+    env.createDirectory("textures");
+    env.createFile("textures/tex1.png", "tex1");
+
+    auto gameConfig = DefaultGameInfo.gameConfig;
+    gameConfig.materialConfig.extensions = {".png"};
+    gameConfig.materialConfig.palette = std::filesystem::path{};
+
+    auto fixtureConfig = MapFixtureConfig{};
+    fixtureConfig.gameInfo = detail::makeGameInfoFixture(gameConfig, env.dir());
+
+    auto& map = fixture.create(fixtureConfig);
+
+    REQUIRE(map.materialManager().collections().size() == 1);
+    REQUIRE(map.materialManager().collections().front().materials().size() == 1);
+
+    env.createFile("textures/tex2.png", "tex2");
+    reloadMaterialCollections(map);
+
+    REQUIRE(map.materialManager().collections().size() == 1);
+    CHECK(map.materialManager().collections().front().materials().size() == 2);
   }
 
   SECTION("reloadEntityDefinitions")

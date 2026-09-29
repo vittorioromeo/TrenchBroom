@@ -23,7 +23,7 @@
 #include <QMainWindow>
 #include <QPointer>
 
-#include "NotifierConnection.h"
+#include "base/NotifierConnection.h"
 #include "mdl/ExportOptions.h"
 
 #include <chrono>
@@ -317,7 +317,7 @@ public:
   void replaceMaterial();
 
   void toggleAlignmentLock();
-  void toggleUVLock();
+  void toggleUvLock();
 
   void toggleShowGrid();
   void toggleSnapToGrid();

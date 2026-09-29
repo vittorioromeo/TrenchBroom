@@ -29,8 +29,7 @@
 #include <QScrollArea>
 #include <QSignalBlocker>
 
-#include "PreferenceManager.h"
-#include "Preferences.h"
+#include "base/PreferenceManager.h"
 #include "mdl/EditorContext.h"
 #include "mdl/EntityDefinition.h"
 #include "mdl/EntityDefinitionGroup.h"
@@ -38,8 +37,10 @@
 #include "mdl/Map.h"
 #include "mdl/MapFormat.h"
 #include "mdl/Tag.h"
+#include "mdl/TagManager.h"
 #include "mdl/TagType.h"
 #include "mdl/WorldNode.h"
+#include "prefs/Preferences.h"
 #include "ui/BorderPanel.h"
 #include "ui/MapDocument.h"
 #include "ui/PopupButton.h"
@@ -453,7 +454,7 @@ void ViewEditor::createTagFilter(QWidget* parent)
   m_tagCheckBoxes.clear();
 
   const auto& map = m_document.map();
-  if (const auto& tags = map.smartTags(); !tags.empty())
+  if (const auto& tags = map.tagManager().smartTags(); !tags.empty())
   {
     createTagFilter(parent, tags);
   }

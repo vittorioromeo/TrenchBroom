@@ -140,8 +140,7 @@ void doParseFrame(
 
   const auto positions = parseFrameVertices(reader, vertices, origin, scale);
 
-  auto bounds = vm::bbox3f::builder{};
-  bounds.add(positions.begin(), positions.end());
+  const auto bounds = vm::bbox3f::build(positions);
 
   const auto frameTriangles =
     makeFrameTriangles(triangles, vertices, positions, skinWidth, skinHeight);
@@ -153,7 +152,7 @@ void doParseFrame(
     gl::IndexRangeMapBuilder<EntityModelVertex::Type>{frameTriangles.size() * 3, size};
   builder.addTriangles(frameTriangles);
 
-  auto& frame = model.addFrame(std::move(name), bounds.bounds());
+  auto& frame = model.addFrame(std::move(name), bounds.value_or(vm::bbox3f{}));
   surface.addMesh(frame, std::move(builder.vertices()), std::move(builder.indices()));
 }
 
@@ -251,9 +250,8 @@ gl::Material parseSkin(
   const auto size = width * height;
   const auto transparency = (flags & MF_HOLEY) ? PaletteTransparency::Index255Transparent
                                                : PaletteTransparency::Opaque;
-  const auto mask = (transparency == PaletteTransparency::Index255Transparent)
-                      ? gl::TextureMask::On
-                      : gl::TextureMask::Off;
+  const auto alphaDomain =
+    (flags & MF_HOLEY) ? img::ImageAlphaDomain::Binary : img::ImageAlphaDomain::Opaque;
   auto avgColor = Color{RgbaF{}};
   auto rgbaImage = gl::TextureBuffer{size * 4};
 
@@ -263,13 +261,8 @@ gl::Material parseSkin(
     palette.indexedToRgba(reader, size, rgbaImage, transparency, avgColor);
 
     auto texture = gl::Texture{
-      width,
-      height,
-      avgColor,
-      GL_RGBA,
-      mask,
-      gl::NoEmbeddedDefaults{},
-      std::move(rgbaImage)};
+      width, height, avgColor, GL_RGBA, gl::NoEmbeddedDefaults{}, std::move(rgbaImage)};
+    texture.setAlphaDomain(alphaDomain);
 
     auto textureResource = createTextureResource(std::move(texture));
     return gl::Material{std::move(skinName), std::move(textureResource)};
@@ -282,13 +275,8 @@ gl::Material parseSkin(
   reader.seekForward((pictureCount - 1) * size); // skip all remaining pictures
 
   auto texture = gl::Texture{
-    width,
-    height,
-    avgColor,
-    GL_RGBA,
-    mask,
-    gl::NoEmbeddedDefaults{},
-    std::move(rgbaImage)};
+    width, height, avgColor, GL_RGBA, gl::NoEmbeddedDefaults{}, std::move(rgbaImage)};
+  texture.setAlphaDomain(alphaDomain);
 
   auto textureResource = createTextureResource(std::move(texture));
   return gl::Material{std::move(skinName), std::move(textureResource)};

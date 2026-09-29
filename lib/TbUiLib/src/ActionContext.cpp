@@ -87,6 +87,10 @@ std::string actionContextName(const ActionContext::Type actionContext)
     {
       actionContexts.emplace_back("faces selected");
     }
+    if (actionContext & ActionContext::SelectionOwnedByTool)
+    {
+      actionContexts.emplace_back("selection owned by tool");
+    }
   }
 
   if ((actionContext & ActionContext::AnyOrNoTool) == ActionContext::AnyOrNoTool)
@@ -130,6 +134,10 @@ std::string actionContextName(const ActionContext::Type actionContext)
     if (actionContext & ActionContext::TerrainTool)
     {
       actionContexts.emplace_back("terrain tool");
+    }
+    if (actionContext & ActionContext::SweepTool)
+    {
+      actionContexts.emplace_back("sweep tool");
     }
   }
 

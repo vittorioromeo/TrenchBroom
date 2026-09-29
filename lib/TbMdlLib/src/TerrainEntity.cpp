@@ -51,7 +51,8 @@ size_t chunkCount(const size_t valueCount)
 
 void removeChunks(Entity& entity, const std::string& prefix)
 {
-  for (const auto& property : entity.properties())
+  const auto properties = entity.properties();
+  for (const auto& property : properties)
   {
     if (property.hasPrefix(prefix))
     {

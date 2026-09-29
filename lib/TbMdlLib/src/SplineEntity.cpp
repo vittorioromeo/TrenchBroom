@@ -21,7 +21,8 @@
 
 #include "mdl/Brush.h"
 #include "mdl/BrushFace.h"
-#include "mdl/BrushFaceAttributes.h"
+#include "mdl/SurfaceAttributes.h"
+#include "mdl/UvAttributes.h"
 #include "mdl/Entity.h"
 #include "mdl/EntityProperties.h"
 #include "mdl/MapSidecar.h"
@@ -181,7 +182,7 @@ std::string formatTemplateBrush(const Brush& brush)
       p[2].x(),
       p[2].y(),
       p[2].z(),
-      face.attributes().materialName()));
+      face.materialName()));
   }
   return kdl::str_join(faces, ";");
 }
@@ -212,7 +213,9 @@ std::optional<Brush> parseTemplateBrush(
       vm::vec3d{coords[0], coords[1], coords[2]},
       vm::vec3d{coords[3], coords[4], coords[5]},
       vm::vec3d{coords[6], coords[7], coords[8]},
-      BrushFaceAttributes{materialName},
+      materialName,
+      UvAttributes{},
+      SurfaceAttributes{},
       mapFormat);
     if (face.is_error())
     {

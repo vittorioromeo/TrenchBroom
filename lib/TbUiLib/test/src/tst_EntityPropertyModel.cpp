@@ -111,7 +111,7 @@ TEST_CASE("EntityPropertyModel")
   mdl::addNodes(
     map,
     {
-      {mdl::parentForNodes(map),
+      {&mdl::parentForNodes(map),
        {
          entityNode1,
          entityNode2,
@@ -434,7 +434,7 @@ TEST_CASE("EntityPropertyModel")
       mdl::addNodes(
         map,
         {{
-          mdl::parentForNodes(map),
+          &mdl::parentForNodes(map),
           {literalKeyEntityNode, wildcardMatchedEntityNode},
         }});
 
@@ -446,6 +446,46 @@ TEST_CASE("EntityPropertyModel")
 
       const auto rowKey = model.propertyKey(rowIndex);
       CHECK(rowKey == specialKey);
+    }
+  }
+
+  SECTION("lessThan")
+  {
+    auto* entityNode = new mdl::EntityNode{mdl::Entity{{
+      {"classname", "source_entity"},
+      {"angle", "some_value"},
+      {"wad2", "some_value"},
+      {"wad10", "some_value"},
+      {"Zhlt", "some_value"},
+    }}};
+
+    mdl::addNodes(map, {{&mdl::parentForNodes(map), {entityNode}}});
+    mdl::selectNodes(map, {entityNode});
+    model.updateFromMap();
+
+    const auto rowIndex = [&](const std::string& propertyKey) {
+      return size_t(model.rowIndexForPropertyKey(propertyKey));
+    };
+
+    REQUIRE(model.rowIndexForPropertyKey("target") != -1);
+    REQUIRE(model.rows().at(rowIndex("target")).valueState == ValueState::Unset);
+
+    SECTION("set properties sort before default properties")
+    {
+      CHECK(model.lessThan(rowIndex("wad2"), rowIndex("target")));
+      CHECK(!model.lessThan(rowIndex("target"), rowIndex("wad2")));
+    }
+
+    SECTION("property keys sort naturally")
+    {
+      CHECK(model.lessThan(rowIndex("wad2"), rowIndex("wad10")));
+      CHECK(!model.lessThan(rowIndex("wad10"), rowIndex("wad2")));
+    }
+
+    SECTION("property keys sort case insensitively")
+    {
+      CHECK(model.lessThan(rowIndex("angle"), rowIndex("Zhlt")));
+      CHECK(!model.lessThan(rowIndex("Zhlt"), rowIndex("angle")));
     }
   }
 }

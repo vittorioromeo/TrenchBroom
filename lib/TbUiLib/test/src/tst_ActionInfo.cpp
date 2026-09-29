@@ -17,26 +17,29 @@
  along with TrenchBroom. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <QKeySequence>
-
+#include "TestPreferenceStore.h"
+#include "base/KeySequence.h"
+#include "base/PreferenceManager.h"
 #include "ui/ActionInfo.h"
-#include "ui/StringMakers.h"
 
+#include "kd/k.h"
+
+#include <unordered_set>
 #include <vector>
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
-#include <catch2/matchers/catch_matchers_vector.hpp>
+#include <catch2/matchers/catch_matchers_range_equals.hpp>
 
 namespace tb::ui
 {
-using Catch::Matchers::UnorderedEquals;
+using Catch::Matchers::UnorderedRangeEquals;
 
 namespace
 {
 
 auto makeActionInfo(
-  const Preference<std::vector<QKeySequence>>& preference,
+  const Preference<std::vector<KeySequence>>& preference,
   const ActionContext::Type actionContext = ActionContext::Any)
 {
   return ActionInfo{
@@ -47,6 +50,27 @@ auto makeActionInfo(
   };
 }
 
+/**
+ * Temporarily replaces the global PreferenceManager instance with one that doesn't save
+ * instantly, so that PreferenceManager::set() only produces a pending (unsaved) value.
+ * Restores an instance equivalent to the one RunAllTests.cpp sets up when it goes out of
+ * scope, so later tests in the same binary still see a live instance.
+ */
+struct ScopedPendingPreferenceManager
+{
+  ScopedPendingPreferenceManager()
+  {
+    PreferenceManager::createInstance(
+      std::make_unique<TestPreferenceStore>(), !K(saveInstantly));
+  }
+
+  ~ScopedPendingPreferenceManager()
+  {
+    PreferenceManager::createInstance(
+      std::make_unique<TestPreferenceStore>(), K(saveInstantly));
+  }
+};
+
 } // namespace
 
 TEST_CASE("ActionInfo")
@@ -56,33 +80,33 @@ TEST_CASE("ActionInfo")
     SECTION("Ignores empty shortcuts")
     {
       const auto preference1 =
-        Preference<std::vector<QKeySequence>>{"Action 1", {QKeySequence{}}};
+        Preference<std::vector<KeySequence>>{"Action 1", {KeySequence{}}};
       const auto preference2 =
-        Preference<std::vector<QKeySequence>>{"Action 2", {QKeySequence{}}};
+        Preference<std::vector<KeySequence>>{"Action 2", {KeySequence{}}};
 
       CHECK_THAT(
         findConflicts({makeActionInfo(preference1), makeActionInfo(preference2)}),
-        UnorderedEquals(std::vector<size_t>{}));
+        UnorderedRangeEquals(std::unordered_set<size_t>{}));
     }
 
     SECTION("Ignores distinct shortcuts")
     {
       const auto preference1 =
-        Preference<std::vector<QKeySequence>>{"Action 1", {QKeySequence{'A'}}};
+        Preference<std::vector<KeySequence>>{"Action 1", {KeySequence{"A"}}};
       const auto preference2 =
-        Preference<std::vector<QKeySequence>>{"Action 2", {QKeySequence{'B'}}};
+        Preference<std::vector<KeySequence>>{"Action 2", {KeySequence{"B"}}};
 
       CHECK_THAT(
         findConflicts({makeActionInfo(preference1), makeActionInfo(preference2)}),
-        UnorderedEquals(std::vector<size_t>{}));
+        UnorderedRangeEquals(std::unordered_set<size_t>{}));
     }
 
     SECTION("Ignores matching shortcuts in disjoint action contexts")
     {
       const auto preference1 =
-        Preference<std::vector<QKeySequence>>{"Action 1", {QKeySequence{'A'}}};
+        Preference<std::vector<KeySequence>>{"Action 1", {KeySequence{"A"}}};
       const auto preference2 =
-        Preference<std::vector<QKeySequence>>{"Action 2", {QKeySequence{'A'}}};
+        Preference<std::vector<KeySequence>>{"Action 2", {KeySequence{"A"}}};
 
       CHECK_THAT(
         findConflicts({
@@ -93,15 +117,15 @@ TEST_CASE("ActionInfo")
             preference2,
             ActionContext::View3D | ActionContext::NoSelection | ActionContext::NoTool),
         }),
-        UnorderedEquals(std::vector<size_t>{}));
+        UnorderedRangeEquals(std::unordered_set<size_t>{}));
     }
 
     SECTION("Reports matching shortcuts in overlapping action contexts")
     {
       const auto preference1 =
-        Preference<std::vector<QKeySequence>>{"Action 1", {QKeySequence{'A'}}};
+        Preference<std::vector<KeySequence>>{"Action 1", {KeySequence{"A"}}};
       const auto preference2 =
-        Preference<std::vector<QKeySequence>>{"Action 2", {QKeySequence{'A'}}};
+        Preference<std::vector<KeySequence>>{"Action 2", {KeySequence{"A"}}};
 
       CHECK_THAT(
         findConflicts({
@@ -112,17 +136,17 @@ TEST_CASE("ActionInfo")
             preference2,
             ActionContext::AnyView | ActionContext::NoSelection | ActionContext::NoTool),
         }),
-        UnorderedEquals(std::vector<size_t>{0, 1}));
+        UnorderedRangeEquals(std::unordered_set<size_t>{0, 1}));
     }
 
     SECTION("Reports later duplicates against the first matching shortcut")
     {
       const auto preference1 =
-        Preference<std::vector<QKeySequence>>{"Action 1", {QKeySequence{'A'}}};
+        Preference<std::vector<KeySequence>>{"Action 1", {KeySequence{"A"}}};
       const auto preference2 =
-        Preference<std::vector<QKeySequence>>{"Action 2", {QKeySequence{'A'}}};
+        Preference<std::vector<KeySequence>>{"Action 2", {KeySequence{"A"}}};
       const auto preference3 =
-        Preference<std::vector<QKeySequence>>{"Action 3", {QKeySequence{'A'}}};
+        Preference<std::vector<KeySequence>>{"Action 3", {KeySequence{"A"}}};
 
       CHECK_THAT(
         findConflicts({
@@ -130,19 +154,19 @@ TEST_CASE("ActionInfo")
           makeActionInfo(preference2),
           makeActionInfo(preference3),
         }),
-        UnorderedEquals(std::vector<size_t>{0, 1, 0, 2}));
+        UnorderedRangeEquals(std::unordered_set<size_t>{0, 1, 2}));
     }
 
     SECTION("Reports matching shortcuts in multi-shortcut preferences")
     {
-      const auto preference1 = Preference<std::vector<QKeySequence>>{
-        "Action 1", {QKeySequence{'A'}, QKeySequence{'B'}}};
+      const auto preference1 = Preference<std::vector<KeySequence>>{
+        "Action 1", {KeySequence{"A"}, KeySequence{"B"}}};
 
       const auto preference2 = GENERATE(
-        Preference<std::vector<QKeySequence>>{
-          "Action 2", {QKeySequence{'C'}, QKeySequence{'B'}}},
-        Preference<std::vector<QKeySequence>>{
-          "Action 2", {QKeySequence{'B'}, QKeySequence{'C'}}});
+        Preference<std::vector<KeySequence>>{
+          "Action 2", {KeySequence{"C"}, KeySequence{"B"}}},
+        Preference<std::vector<KeySequence>>{
+          "Action 2", {KeySequence{"B"}, KeySequence{"C"}}});
 
       CAPTURE(preference2);
 
@@ -151,35 +175,58 @@ TEST_CASE("ActionInfo")
           makeActionInfo(preference1),
           makeActionInfo(preference2),
         }),
-        UnorderedEquals(std::vector<size_t>{0, 1}));
+        UnorderedRangeEquals(std::unordered_set<size_t>{0, 1}));
     }
 
     SECTION("Ignores duplicate shortcuts in the same multi-shortcut preference")
     {
-      const auto preference = Preference<std::vector<QKeySequence>>{
-        "Action", {QKeySequence{'A'}, QKeySequence{'A'}}};
+      const auto preference = Preference<std::vector<KeySequence>>{
+        "Action", {KeySequence{"A"}, KeySequence{"A"}}};
 
       CHECK_THAT(
         findConflicts({
           makeActionInfo(preference),
         }),
-        UnorderedEquals(std::vector<size_t>{}));
+        UnorderedRangeEquals(std::unordered_set<size_t>{}));
     }
 
     SECTION(
       "Reports duplicate shortcuts in the same preference only against other actions")
     {
-      const auto preference1 = Preference<std::vector<QKeySequence>>{
-        "Action 1", {QKeySequence{'A'}, QKeySequence{'A'}}};
+      const auto preference1 = Preference<std::vector<KeySequence>>{
+        "Action 1", {KeySequence{"A"}, KeySequence{"A"}}};
       const auto preference2 =
-        Preference<std::vector<QKeySequence>>{"Action 2", {QKeySequence{'A'}}};
+        Preference<std::vector<KeySequence>>{"Action 2", {KeySequence{"A"}}};
 
       CHECK_THAT(
         findConflicts({
           makeActionInfo(preference1),
           makeActionInfo(preference2),
         }),
-        UnorderedEquals(std::vector<size_t>{0, 1}));
+        UnorderedRangeEquals(std::unordered_set<size_t>{0, 1}));
+    }
+
+    SECTION("Reports conflicts introduced by a pending, unsaved preference change")
+    {
+      const auto scopedPreferenceManager = ScopedPendingPreferenceManager{};
+
+      const auto preference1 =
+        Preference<std::vector<KeySequence>>{"Action 1", {KeySequence{"A"}}};
+      const auto preference2 =
+        Preference<std::vector<KeySequence>>{"Action 2", {KeySequence{"B"}}};
+
+      REQUIRE_THAT(
+        findConflicts({makeActionInfo(preference1), makeActionInfo(preference2)}),
+        UnorderedRangeEquals(std::unordered_set<size_t>{}));
+
+      // Not saved, only pending -- getPendingValue() must be consulted for this to be
+      // picked up by findConflicts()
+      PreferenceManager::instance().set(
+        preference2, std::vector<KeySequence>{KeySequence{"A"}});
+
+      CHECK_THAT(
+        findConflicts({makeActionInfo(preference1), makeActionInfo(preference2)}),
+        UnorderedRangeEquals(std::unordered_set<size_t>{0, 1}));
     }
   }
 }

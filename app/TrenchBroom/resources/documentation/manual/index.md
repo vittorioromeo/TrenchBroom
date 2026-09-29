@@ -332,6 +332,7 @@ Entity Drag Tool      2D, 3D       Permanent     Creating entities by drag and d
 Resize Tool           2D, 3D       Permanent*    Resizing brushes by dragging faces
 Move Tool             2D, 3D       Permanent*    Moving objects around
 Rotate Tool           2D, 3D       Modal         Rotating objects
+Sweep Tool            2D, 3D       Modal         Sweeping brush faces into runs of brushes
 Scale Tool            2D, 3D       Modal         Scaling brushes
 Shear Tool            2D, 3D       Modal         Shearing brushes
 Clip Tool             2D, 3D       Modal         Clipping brushes
@@ -343,6 +344,7 @@ Tool                  Menu
 ----                  -----------
 Complex Shape Tool    #menu(Menu/Edit/Tools/Brush Tool)
 Rotate Tool           #menu(Menu/Edit/Tools/Rotate Tool)
+Sweep Tool            #menu(Menu/Edit/Tools/Sweep Tool)
 Scale Tool            #menu(Menu/Edit/Tools/Scale Tool)
 Shear Tool            #menu(Menu/Edit/Tools/Shear Tool)
 Clip Tool             #menu(Menu/Edit/Tools/Clip Tool)
@@ -360,6 +362,7 @@ State                 Effect
 -----                 ------
 Complex Shape Tool    Discard all placed points; deactivate tool
 Clip Tool             Discard most recently placed clip point; deactivate tool
+Sweep Tool            Move the destination cap back onto the selected faces; deactivate tool
 Vertex Tool           Discard current vertex selection; deactivate tool
 Selection Tool        Discard current selection
 
@@ -425,6 +428,9 @@ Select All in Layers
 Make Structural
 :   Moves brushes back into the world and clears any content flags. See [Brush Entities](#brush_entities).
 
+Select All CLASSNAME
+:   Select every entity in the map which has the same classname as the entity being hovered.
+
 Reveal MATERIALNAME in Material Browser
 :   Switches to the face inspector and scroll to the clicked material in the [Material Browser](#material_browser).
 
@@ -483,7 +489,7 @@ This hollow cylinder is scalable because its vertices are all aligned on the gri
 
 If you create an asymmetric scalable shape, it will not be scaled to fit the bounding box drawn with the mouse like the other shapes. Rather, only the middle portion of it will be elongated so that the vertices remain on the grid. This even applies to cones and UV spheres so that the different shapes still fit together.
 
-The arch is created as the top half of a hollow cylinder. The axis is the direction the arch runs through, like a tunnel. Sides, thickness and circle mode work just like the cylinder, so an arch and a cylinder built with the same values will line up. When using scalable circle mode, drawing the bounds taller than a semicircle will extend the sides straight down, acting as "supports" for the arch. 
+The arch is created as the top half of a hollow cylinder. The axis is the direction the arch runs through, like a tunnel. Sides, thickness and circle mode work just like the cylinder, so an arch and a cylinder built with the same values will line up. When using scalable circle mode, drawing the bounds taller than a semicircle will extend the sides straight down, acting as "supports" for the arch. Checking _Spandrel_ fills the gaps between the arch and its bounding box with extra brushes. 
 
 ### Creating Complex Shapes
 
@@ -726,7 +732,7 @@ When starting a drag with #key(Ctrl) you can also drag inward to split the origi
 
 ![Splitting a brush inward in the 3D viewport](images/ExtrudeTool3DSplitInwardMode.gif)
 
-You can also extrude several brushes at the same time by moving their faces using the extrude tool, but only if these faces line up perfectly. As the following animation illustrates, it's not enough that the faces are parallel - they have to be identical.
+You can also extrude several brushes at the same time by moving their faces using the extrude tool, but only if these faces line up perfectly. As the following animation illustrates, it's not enough that the faces are parallel - they have to be identical. Note however that their normals can be opposing, so you can also resize the faces where two brushes touch. If the two faces have the exact same vertices, you can pick the shared face(s) for extrusion by hovering over a shared edge. Splitting is disabled when extruding opposing faces to avoid creating overlapping brushes.
 
 ![Extruding multiple brushes](images/ExtrudeTool3DMultipleBrushes.gif)
 
@@ -737,11 +743,21 @@ The extrude tool also works in the 2D viewports, of course, but the ability to m
 
 Both snap modes are used simultaneously. There may be situations when you have to move the camera closer to a face in order to have sufficient precision when dragging the face.
 
+#### Stamping Brushes
+
+Normally, extruded brushes continue the shape of the original brush, but this is not always desirable.
+
+![Extruding vs. stamping](images/ExtrudeToolStamping.png)
+
+In the image, the selected brush on the left has been extruded from the top face of the brush below it. It continues the shape of the brush, a frustum. The selected brush on the right has been stamped from the top face of the brush below it. Stamping does not continue the shape of the original brush, instead, it just duplicates the selected face and moves it along its normal. The new brush then becomes the convex hull of the vertices of the original face and its duplicate.
+
+To stamp a brush, hold #key(Ctrl) and #key(Alt) in a ddition to #key(Shift) and drag a face of a selected brush.
+
 #### Moving Faces Instead of Extruding {#moving_faces}
 
-The brush extrude tool offers a quick way to move an individual face of a brush in 2D views. Hold #key(Alt) in addition to #key(Shift) when starting to drag a face in a 2D view to enable this mode. You will notice that a face is highlighted as usual, but when you start dragging the mouse, the face will just be moved in the direction you are dragging. The move is not restricted by the face normal, and other faces will be affected as well.
+The brush extrude tool offers a quick way to move an individual face of a brush. Hold #key(Alt) in addition to #key(Shift) when starting to drag a face to enable this mode. You will notice that a face is highlighted as usual, but when you start dragging the mouse, the face will just be moved in the direction you are dragging. In 2D views, the move is not restricted by the face normal, and other faces will be affected as well. In 3D views, the move is restricted by the face normal.
 
-![Moving faces](images/ExtrudeTool2DFaceMoving.gif)
+![Moving faces (2D view)](images/ExtrudeTool2DFaceMoving.gif)
 
 The distance is snapped to the current grid size. Moving multiple faces is possible if the faces lie on the same plane. The [UV Lock](#uv_lock) setting controls whether alignment lock is used when dragging faces using this mode.
 
@@ -770,6 +786,31 @@ In the 2D viewport, clip points are just snapped to the visible grid, so they ar
 #### Matching Clip Plane
 
 ![Matching a clip plane](images/MatchingClipPlane.gif) The clip plane can also be defined by matching it to an existing brush face. To match a clip plane to an existing brush face, you have to double click that face in the 3D viewport. As a result, the brush face gets an orange outline, and a clip plane is defined to match the face's plane exactly. This can be quite useful when shaping geometry to other geometry. Note that the plane points of the clip plane are the plane points of the brush face to which the clip plane was matched, so there should be no trouble with microleaks when using this particular function.
+
+### Sweeping {#sweeping}
+
+The sweep tool fills the gap between the selected brush faces and a copy of those faces, called the destination cap, with a run of brushes. Depending on where you place the destination cap and which path you choose, this lofts the faces along a straight line, revolves them around an axis to build arches and pipes, or routes them through an S-curve, optionally twisting and tapering along the way. To use the sweep tool, select one or more brush faces and choose #menu(Menu/Edit/Tools/Sweep Tool).
+
+![Rotating a face to form a bend with the Sweep Tool](images/SweepTool.gif) 
+
+When the sweep tool is active, a ghost outline shows where the destination cap will end up, and a handle allows you to place it:
+
+- Dragging the center of the handle moves the destination cap.
+- Dragging one of the rings rotates it about the corresponding axis.
+- Dragging the green handle scales it uniformly, flaring or tapering the sweep.
+- Pressing #action(Controls/Map view/Move objects up; Move objects forward) and the other movement shortcuts moves the destination cap by one grid step.
+- Pressing #action(Controls/Map view/Roll objects clockwise) and the other rotation shortcuts rotates the destination cap by one angle snap step.
+- Pressing #action(Controls/Map view/Increase sweep scale) or #action(Controls/Map view/Decrease sweep scale) moves the scale handle out or in by one grid step, growing or shrinking the destination cap.
+
+The generated brushes are shown as a preview in the viewports while you place the destination cap. Shortcuts that act on the selection, including UV editing, are unavailable until the tool is deactivated. The controls above the editing views determine how the gap is filled:
+
+- **Segments** is the number of brushes created between the selected faces and the destination cap.
+- **Path** selects how the brushes are laid out: Arc revolves the faces around an axis derived from the rotation, Straight lofts them along a line, and S-bend routes them through an S-curve. The destination cap ends up in the same place in each mode.
+- **Iterations** repeats the sweep, continuing from the previous destination cap. For example, an arc that rises while turning becomes a spiral staircase when swept for multiple iterations.
+- **Snap to integer grid** rounds the vertices of the generated brushes to integer coordinates.
+- **Reset** moves the destination cap back onto the selected faces.
+
+Hit #action(Controls/Map view/Perform sweep) to fill the gap with brushes and select them. Hitting #action(Controls/Map view/Cancel) moves the destination cap back onto the selected faces, and hitting it again deactivates the tool.
 
 ### Vertex Editing {#vertex_editing}
 
@@ -1018,9 +1059,11 @@ Justify      Change the offset to justify the texture to the face's bounding box
 Fit          Change the scale to fit the texture (or a multiple of it) onto the face while keeping it justified.
 
 
-![Align, justify and fit buttons](images/AlignJustifyFit.png) Click one of the four triangle buttons to justify the texture against the face's bounding box. If the texture size in the chosen direction is a multiple of the face size along the same axis, you can press the justify button multiple times to step through different options. This can be helpful to justify a texture from a texture atlas. Hold shift when clicking to step through the options in the opposite direction.
+![Align, justify and fit buttons](images/AlignJustifyFit.png) Click one of the four triangle buttons to justify the texture against the face's bounding box. If the texture size in the chosen direction is a multiple of the face size along the same axis, you can press the justify button multiple times to step through different options. This can be helpful to justify a texture from a texture atlas. Hold #key(Shift) when clicking to step through the options in the opposite direction.
 
-The lower three buttons are used to align and fit the texture. Click on the leftmost button to align the texture to the face edges. Click repeatedly to cycle through the face edges. Hold shift while clicking to cycle in the opposite direction. The two remaining buttons fit the texture horizontally and vertically. Again, you can click again to cycle through different fitting options. Repeated clicks cycle through integer fit factors, increasing the repeat count (or, below 1, the corresponding integer divisor) one step at a time. Again, hold shift to cycle through the options in the opposite direction.
+The lower three buttons are used to align and fit the texture. Click on the leftmost button to align the texture to the face edges. Click repeatedly to cycle through the face edges. Hold #key(Shift) while clicking to cycle in the opposite direction. 
+
+The two remaining buttons fit the texture horizontally and vertically. If the texture is smaller than the face, repeated clicks cycle through integer fit factors, increasing the repeat count one step at a time; hold #key(Shift) to cycle through the options in the opposite direction. If the texture is larger than the face, the fit buttons scale it so that the entire texture is visible on the face. To instead show only a fraction (1/n) of the texture, hold #key(Ctrl) while clicking to cycle through the integer subdivisions, and hold #key(Ctrl) and #key(Shift) to cycle through them in the opposite direction. This mode is useful for trim sheets, where several sub-textures are packed into a single image.
 
 The button in the center of the four justification arrows auto fits the texture, i.e. it aligns, justifies and fits the texture.
 
@@ -1674,6 +1717,12 @@ Layers marked "Omit From Export" will not be present in the exported map.
 
 Target
 :    The path of the exported file. Variables are allowed. Relative paths are implicitly relative to the working directory.
+
+Strip Entities
+:    Set a GLOB pattern to strip any entities with a matching classname. Example: 'info_player_*' to strip all info_player_start and all info_player_deatchmatch entities.
+
+Add Entity
+:    Set the classname of an entity that will be added to the exported map. Example: 'info_player_start'. This entity will have its 'origin' property set to the position of the 3D camera, and its 'angle' property set to the yaw angle of the camera. Useful when testing maps.
 
 Strip TB specific entity properties
 :    Strip any entity properties starting with _tb_ from the exported map file. Some compilers cannot handle these properties.

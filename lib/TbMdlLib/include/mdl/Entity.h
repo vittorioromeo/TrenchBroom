@@ -19,7 +19,7 @@
 
 #pragma once
 
-#include "Result.h"
+#include "base/Result.h"
 #include "el/Forward.h" // IWYU pragma: keep
 #include "mdl/AssetReference.h"
 #include "mdl/EntityProperties.h"
@@ -105,8 +105,15 @@ private:
    */
   mutable std::optional<std::string> m_cachedClassname;
   mutable std::optional<vm::vec3d> m_cachedOrigin;
-  mutable std::optional<vm::mat4x4d> m_cachedRotation;
-  mutable std::optional<vm::mat4x4d> m_cachedModelTransformation;
+
+  struct ModelDependentTransformation
+  {
+    vm::mat4x4d transform;
+    bool modelIsLoaded;
+  };
+
+  mutable std::optional<ModelDependentTransformation> m_cachedRotation;
+  mutable std::optional<ModelDependentTransformation> m_cachedModelTransformation;
 
 public:
   Entity();

@@ -19,7 +19,9 @@
 
 #pragma once
 
-#include "Result.h"
+#include "base/Result.h"
+
+#include <filesystem>
 
 namespace tb
 {
@@ -39,6 +41,8 @@ namespace mdl
 /**
  * Heretic 2 .m32 format
  */
+bool isM32Texture(const std::filesystem::path& path);
+
 Result<gl::Texture> loadM32Texture(fs::Reader& reader);
 
 } // namespace mdl

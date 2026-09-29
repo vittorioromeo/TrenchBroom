@@ -50,7 +50,7 @@ mdl::Entity makeEntity(std::vector<mdl::EntityProperty> properties)
 void addEntity(mdl::Map& map, std::vector<mdl::EntityProperty> properties)
 {
   auto* entityNode = new mdl::EntityNode{makeEntity(std::move(properties))};
-  addNodes(map, {{parentForNodes(map), {entityNode}}});
+  addNodes(map, {{&parentForNodes(map), {entityNode}}});
 }
 
 void setWorldspawn(mdl::Map& map, std::vector<mdl::EntityProperty> properties)

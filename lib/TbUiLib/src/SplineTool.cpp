@@ -19,9 +19,9 @@
 
 #include "ui/SplineTool.h"
 
-#include "Logger.h"
-#include "PreferenceManager.h"
-#include "Preferences.h"
+#include "base/Logger.h"
+#include "base/PreferenceManager.h"
+#include "prefs/Preferences.h"
 #include "gl/Camera.h"
 #include "mdl/Brush.h"
 #include "mdl/BrushNode.h"
@@ -43,7 +43,6 @@
 #include "mdl/WorldNode.h"
 #include "render/RenderService.h"
 #include "ui/MapDocument.h"
-#include "ui/SplineToolPage.h"
 
 #include "kd/overload.h"
 #include "kd/ranges/to.h"
@@ -1200,7 +1199,7 @@ void SplineTool::commitSpline(const std::string& commandName)
     }
   }
 
-  auto* parent = m_splineNode ? m_splineNode->parent() : parentForNodes(map, {});
+  auto* parent = m_splineNode ? m_splineNode->parent() : &parentForNodes(map, {});
 
   auto transaction = mdl::Transaction{map, commandName};
   auto nodesToRemove = generatedEntityNodes;
@@ -1466,11 +1465,6 @@ bool SplineTool::doDeactivate()
   clearSpline();
   m_otherSplines.clear();
   return true;
-}
-
-QWidget* SplineTool::doCreatePage(QWidget* parent)
-{
-  return new SplineToolPage{m_document, *this, parent};
 }
 
 void SplineTool::connectObservers()

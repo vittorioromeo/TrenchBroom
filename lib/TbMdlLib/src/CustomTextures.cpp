@@ -19,12 +19,12 @@
 
 #include "mdl/CustomTextures.h"
 
-#include "Color.h"
+#include "base/Color.h"
 #include "fs/DiskIO.h"
 #include "fs/File.h"
 #include "gl/Texture.h"
 #include "gl/TextureBuffer.h"
-#include "mdl/LoadFreeImageTexture.h"
+#include "mdl/LoadImageTexture.h"
 #include "mdl/MaterialUtils.h"
 #include "mdl/Palette.h"
 
@@ -267,7 +267,7 @@ Result<CustomTexture> loadCustomTexture(
   return fs::Disk::openFile(path)
          | kdl::and_then([&](const std::shared_ptr<fs::CFile>& file) {
              auto reader = file->reader();
-             return loadFreeImageTexture(reader);
+             return loadImageTexture(reader);
            })
          | kdl::and_then([&](const gl::Texture& texture) -> Result<CustomTexture> {
              const auto& buffers = texture.buffersIfLoaded();
@@ -316,14 +316,17 @@ Result<gl::Texture> createCustomTextureImage(
 
   const auto averageColor = getAverageColor(buffers.front(), GL_RGBA);
 
-  return gl::Texture{
+  auto texture = gl::Texture{
     customTexture.width,
     customTexture.height,
     averageColor,
     GL_RGBA,
-    customTexture.masked ? gl::TextureMask::On : gl::TextureMask::Off,
     gl::NoEmbeddedDefaults{},
     std::move(buffers)};
+  texture.setAlphaDomain(
+    customTexture.masked ? img::ImageAlphaDomain::Binary
+                         : img::ImageAlphaDomain::Opaque);
+  return texture;
 }
 
 WadLump makeCustomTextureLump(const CustomTexture& customTexture)

@@ -30,6 +30,7 @@
 #include "mdl/Map_Nodes.h"
 #include "mdl/TestFactory.h"
 #include "mdl/Transaction.h"
+#include "version/Version.h"
 
 #include "kd/vector_utils.h"
 
@@ -74,10 +75,10 @@ TEST_CASE("makeBackupPathMatcher")
   CHECK(matcher("test.1.map", getPathInfo));
   CHECK(matcher("test.2.map", getPathInfo));
   CHECK(matcher("test.20.map", getPathInfo));
-  CHECK_FALSE(matcher("dir", getPathInfo));
-  CHECK_FALSE(matcher("test.map", getPathInfo));
-  CHECK_FALSE(matcher("test.1-crash.map", getPathInfo));
-  CHECK_FALSE(matcher("test.2-crash.map", getPathInfo));
+  CHECK(!matcher("dir", getPathInfo));
+  CHECK(!matcher("test.map", getPathInfo));
+  CHECK(!matcher("test.1-crash.map", getPathInfo));
+  CHECK(!matcher("test.2-crash.map", getPathInfo));
 }
 
 TEST_CASE("Autosaver")
@@ -105,8 +106,8 @@ TEST_CASE("Autosaver")
 
     autosaver.triggerAutosave();
 
-    CHECK_FALSE(env.fileExists("autosave/test.1.map"));
-    CHECK_FALSE(env.directoryExists("autosave"));
+    CHECK(!env.fileExists("autosave/test.1.map"));
+    CHECK(!env.directoryExists("autosave"));
   }
 
   SECTION("Trigger a save when the interval expires")
@@ -199,8 +200,8 @@ TEST_CASE("Autosaver")
     auto autosaver = Autosaver{map, 0s};
     autosaver.triggerAutosave();
 
-    CHECK_FALSE(env.fileExists("autosave/test.1.map"));
-    CHECK_FALSE(env.directoryExists("autosave"));
+    CHECK(!env.fileExists("autosave/test.1.map"));
+    CHECK(!env.directoryExists("autosave"));
   }
 
   SECTION("Autosave works when crash files are present")
@@ -230,6 +231,35 @@ TEST_CASE("Autosaver")
   {
     constexpr auto maxBackups = 3u;
     env.createDirectory("autosave");
+
+    const auto mapHeader = fmt::format(
+      R"(// Game: Test
+// Format: Standard
+// Generator: TrenchBroom {} (Build {})
+)",
+      VERSION_STR,
+      BUILD_ID_STR);
+
+    const auto savedMapWithOneEntity = mapHeader + R"(// entity 0
+{
+"classname" "worldspawn"
+}
+// entity 1
+{
+}
+)";
+
+    const auto savedMapWithTwoEntities = mapHeader + R"(// entity 0
+{
+"classname" "worldspawn"
+}
+// entity 1
+{
+}
+// entity 2
+{
+}
+)";
 
     SECTION("Files are rotated")
     {
@@ -268,19 +298,10 @@ TEST_CASE("Autosaver")
       CHECK(env.directoryContents("autosave") == allPaths);
       CHECK_THAT(
         allPaths | std::views::transform(loadFile),
-        RangeEquals(std::vector{
+        RangeEquals(std::vector<std::string>{
           "autosave/test.1.map",
           "autosave/test.2.map",
-          R"(// Game: Test
-// Format: Standard
-// entity 0
-{
-"classname" "worldspawn"
-}
-// entity 1
-{
-}
-)",
+          savedMapWithOneEntity,
         }));
 
       // modify the map again
@@ -292,31 +313,10 @@ TEST_CASE("Autosaver")
       CHECK(env.directoryContents("autosave") == allPaths);
       CHECK_THAT(
         allPaths | std::views::transform(loadFile),
-        RangeEquals(std::vector{
+        RangeEquals(std::vector<std::string>{
           "autosave/test.2.map",
-          R"(// Game: Test
-// Format: Standard
-// entity 0
-{
-"classname" "worldspawn"
-}
-// entity 1
-{
-}
-)",
-          R"(// Game: Test
-// Format: Standard
-// entity 0
-{
-"classname" "worldspawn"
-}
-// entity 1
-{
-}
-// entity 2
-{
-}
-)",
+          savedMapWithOneEntity,
+          savedMapWithTwoEntities,
         }));
     }
 
@@ -360,19 +360,10 @@ TEST_CASE("Autosaver")
       CHECK(env.directoryContents("autosave") == allPaths);
       CHECK_THAT(
         allPaths | std::views::transform(loadFile),
-        RangeEquals(std::vector{
+        RangeEquals(std::vector<std::string>{
           "autosave/test.1.map",
           "autosave/test.3.map",
-          R"(// Game: Test
-// Format: Standard
-// entity 0
-{
-"classname" "worldspawn"
-}
-// entity 1
-{
-}
-)",
+          savedMapWithOneEntity,
         }));
     }
 
@@ -414,19 +405,10 @@ TEST_CASE("Autosaver")
       CHECK(env.directoryContents("autosave") == allPaths);
       CHECK_THAT(
         allPaths | std::views::transform(loadFile),
-        RangeEquals(std::vector{
+        RangeEquals(std::vector<std::string>{
           "autosave/test.3.map",
           "autosave/test.4.map",
-          R"(// Game: Test
-// Format: Standard
-// entity 0
-{
-"classname" "worldspawn"
-}
-// entity 1
-{
-}
-)",
+          savedMapWithOneEntity,
         }));
     }
 
@@ -469,19 +451,10 @@ TEST_CASE("Autosaver")
       CHECK(env.directoryContents("autosave") == allPaths);
       CHECK_THAT(
         allPaths | std::views::transform(loadFile),
-        RangeEquals(std::vector{
+        RangeEquals(std::vector<std::string>{
           "autosave/test.4.map",
           "autosave/test.5.map",
-          R"(// Game: Test
-// Format: Standard
-// entity 0
-{
-"classname" "worldspawn"
-}
-// entity 1
-{
-}
-)",
+          savedMapWithOneEntity,
         }));
     }
   }

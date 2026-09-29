@@ -19,8 +19,7 @@
 
 #include "ui/EntityBrowserView.h"
 
-#include "PreferenceManager.h"
-#include "Preferences.h"
+#include "base/PreferenceManager.h"
 #include "el/VariableStore.h"
 #include "gl/ActiveShader.h"
 #include "gl/FontDescriptor.h"
@@ -42,6 +41,7 @@
 #include "mdl/EntityModel.h"
 #include "mdl/EntityModelManager.h"
 #include "mdl/Map.h"
+#include "prefs/Preferences.h"
 #include "render/Transformation.h"
 #include "ui/MapDocument.h"
 
@@ -408,8 +408,10 @@ void EntityBrowserView::renderModels(
               const auto multMatrix =
                 render::MultiplyModelMatrix{transformation, itemTrans};
 
-              auto renderFunc = gl::DefaultMaterialRenderFunc{
-                pref(Preferences::TextureMinFilter), pref(Preferences::TextureMagFilter)};
+              auto renderFunc = gl::AlphaTestedMaterialRenderFunc{
+                shader,
+                pref(Preferences::TextureMinFilter),
+                pref(Preferences::TextureMagFilter)};
               modelRenderer->render(gl, shader.program(), renderFunc);
             }
           }

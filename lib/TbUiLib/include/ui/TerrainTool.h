@@ -19,8 +19,8 @@
 
 #pragma once
 
-#include "Notifier.h"
-#include "NotifierConnection.h"
+#include "base/Notifier.h"
+#include "base/NotifierConnection.h"
 #include "mdl/Terrain.h"
 #include "mdl/TerrainEntity.h"
 #include "mdl/TerrainHeightmap.h"
@@ -264,8 +264,6 @@ private:
 private:
   bool doActivate() override;
   bool doDeactivate() override;
-
-  QWidget* doCreatePage(QWidget* parent) override;
 
   void connectObservers();
   void nodesWereAdded(const std::vector<mdl::Node*>& nodes);

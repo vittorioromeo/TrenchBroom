@@ -19,8 +19,8 @@
 
 #include "render/LightPreviewScene.h"
 
-#include "PreferenceManager.h"
-#include "Preferences.h"
+#include "base/PreferenceManager.h"
+#include "prefs/Preferences.h"
 #include "gl/GlInterface.h"
 #include "gl/Material.h"
 #include "gl/Texture.h"
@@ -51,6 +51,7 @@
 #include <cctype>
 #include <cmath>
 #include <cstdlib>
+#include <optional>
 #include <string_view>
 #include <unordered_map>
 #include <unordered_set>
@@ -509,7 +510,7 @@ BrushModelLighting readBrushModelLighting(const mdl::EntityNodeBase* entityNode)
 struct TriangleSink
 {
   PreviewScene& scene;
-  vm::bbox3f::builder bounds;
+  std::optional<vm::bbox3f> bounds;
 
   void add(
     const vm::vec3f& p0,
@@ -541,9 +542,10 @@ struct TriangleSink
     scene.trianglePositions.push_back(PreviewTrianglePos{p0, e1, e2});
     scene.triangleShading.push_back(shading);
 
-    bounds.add(p0);
-    bounds.add(p1);
-    bounds.add(p2);
+    for (const auto& point : {p0, p1, p2})
+    {
+      bounds = bounds ? vm::merge(*bounds, point) : vm::bbox3f{point};
+    }
   }
 };
 
@@ -563,7 +565,7 @@ void addBrushFace(
 
   if (hiddenClassifier.isHidden(
         material,
-        face.attributes().materialName(),
+        face.materialName(),
         surfaceFlags,
         face.resolvedSurfaceContents()))
   {
@@ -593,7 +595,7 @@ void addBrushFace(
     // when the material itself could not be resolved.
     const auto nonSolid = brushNode.hasAttribute(mdl::TagAttributes::Transparency)
                           || face.hasAttribute(mdl::TagAttributes::Transparency)
-                          || isLiquidMaterialName(face.attributes().materialName());
+                          || isLiquidMaterialName(face.materialName());
     shading.kind = nonSolid ? PreviewSurfaceKind::NonSolid : PreviewSurfaceKind::Solid;
     shading.occludes = !nonSolid && brushModel.castsShadows;
 
@@ -1091,8 +1093,7 @@ PreviewScene buildPreviewScene(
       }
     }));
 
-  scene.bounds =
-    sink.bounds.initialized() ? sink.bounds.bounds() : vm::bbox3f{0.0f, 0.0f};
+  scene.bounds = sink.bounds.value_or(vm::bbox3f{0.0f, 0.0f});
 
   scene.hasSkyFaces = std::any_of(
     scene.triangleShading.begin(), scene.triangleShading.end(), [](const auto& shading) {

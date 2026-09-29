@@ -172,7 +172,7 @@ TEST_CASE("createSplineBrushes")
       CHECK(brush.fullySpecified());
       for (const auto& face : brush.faces())
       {
-        CHECK(face.attributes().materialName() == "some_material");
+        CHECK(face.materialName() == "some_material");
       }
     }
   }
@@ -286,10 +286,10 @@ TEST_CASE("createSplineBrushes")
     auto uvTemplate = makeCuboid(templateBounds, "some_material");
     for (auto& face : uvTemplate.faces())
     {
-      auto attributes = face.attributes();
-      attributes.setScale(vm::vec2f{2.0f, 2.0f});
-      attributes.setRotation(30.0f);
-      face.setAttributes(attributes);
+      auto attributes = face.uvAttributes();
+      attributes.scale = vm::vec2f{2.0f, 2.0f};
+      attributes.rotation = 30.0f;
+      face.setUvAttributes(attributes);
     }
     const auto uvTemplates = std::vector<const Brush*>{&uvTemplate};
 
@@ -320,9 +320,9 @@ TEST_CASE("createSplineBrushes")
                                  || vm::abs(normal.z()) > 0.999;
         if (axisAligned)
         {
-          CHECK(face.attributes().scale() == vm::vec2f{2.0f, 2.0f});
-          CHECK(face.attributes().rotation() == 30.0f);
-          CHECK(face.attributes().materialName() == "some_material");
+          CHECK(face.uvAttributes().scale == vm::vec2f{2.0f, 2.0f});
+          CHECK(face.uvAttributes().rotation == 30.0f);
+          CHECK(face.materialName() == "some_material");
           ++checkedFaces;
         }
       }
@@ -346,10 +346,10 @@ TEST_CASE("createSplineBrushes")
       uvBuilder.createCuboid(templateBounds, "some_material") | kdl::value();
     for (auto& face : uvTemplate.faces())
     {
-      auto attributes = face.attributes();
-      attributes.setScale(vm::vec2f{1.0f, 1.0f});
-      attributes.setOffset(vm::vec2f{11.0f, 7.0f});
-      face.setAttributes(attributes);
+      auto attributes = face.uvAttributes();
+      attributes.scale = vm::vec2f{1.0f, 1.0f};
+      attributes.offset = vm::vec2f{11.0f, 7.0f};
+      face.setUvAttributes(attributes);
       face.setMaterial(&material);
     }
     const auto uvTemplates = std::vector<const Brush*>{&uvTemplate};
@@ -486,9 +486,9 @@ TEST_CASE("createSplineBrushes")
                       | kdl::value();
     for (auto& face : uvTemplate.faces())
     {
-      auto attributes = face.attributes();
-      attributes.setScale(vm::vec2f{3.25f, 4.5f});
-      face.setAttributes(attributes);
+      auto attributes = face.uvAttributes();
+      attributes.scale = vm::vec2f{3.25f, 4.5f};
+      face.setUvAttributes(attributes);
       face.setMaterial(&material);
     }
     const auto uvTemplates = std::vector<const Brush*>{&uvTemplate};

@@ -19,9 +19,9 @@
 
 #pragma once
 
-#include "Notifier.h"
-#include "NotifierConnection.h"
-#include "Result.h"
+#include "base/Notifier.h"
+#include "base/NotifierConnection.h"
+#include "base/Result.h"
 #include "gl/ResourceId.h"
 #include "mdl/BrushFaceHandle.h"
 #include "mdl/CustomTextures.h"
@@ -66,7 +66,6 @@ enum class PasteType;
 enum class TransactionScope;
 enum class WrapStyle;
 
-class BrushFaceAttributes;
 class Command;
 class CommandProcessor;
 class EditorContext;
@@ -86,7 +85,6 @@ class RepeatStack;
 class SmartTag;
 class TagManager;
 class UndoableCommand;
-class UVCoordSystemSnapshot;
 class WorldNode;
 
 enum class VisualEffect;
@@ -348,11 +346,6 @@ public: // selection management
 
 public: // tag management
   void registerSmartTags();
-  const std::vector<SmartTag>& smartTags() const;
-  bool isRegisteredSmartTag(const std::string& name) const;
-  const SmartTag& smartTag(const std::string& name) const;
-  bool isRegisteredSmartTag(size_t index) const;
-  const SmartTag& smartTag(size_t index) const;
 
 private:
   void initializeAllNodeTags();

@@ -26,7 +26,7 @@
 #include <QRadioButton>
 #include <QScrollArea>
 
-#include "Color.h"
+#include "base/Color.h"
 #include "mdl/ColorRange.h"
 #include "mdl/EntityColorPropertyValue.h" // IWYU pragma: keep
 #include "mdl/EntityDefinition.h"         // IWYU pragma: keep
@@ -48,8 +48,8 @@
 #include "ui/ViewConstants.h"
 
 #include "kd/contracts.h"
+#include "kd/flat_set.h"
 #include "kd/overload.h"
-#include "kd/vector_set.h"
 
 #include <fmt/ostream.h>
 
@@ -94,7 +94,7 @@ std::vector<QColor> collectColors(
     return toHsl(lhs) < toHsl(rhs);
   };
 
-  auto colors = kdl::vector_set<QColor, decltype(cmp)>{cmp};
+  auto colors = kdl::flat_set<QColor, decltype(cmp)>{cmp};
   const auto visitEntityNode = [&](const auto& node) {
     if (const auto* propertyValue = node.entity().property(propertyKey))
     {
@@ -125,7 +125,7 @@ std::vector<QColor> collectColors(
       [](const mdl::PatchNode&) {}));
   }
 
-  return colors.get_data();
+  return colors.extract();
 }
 
 } // namespace

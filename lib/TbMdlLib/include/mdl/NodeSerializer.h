@@ -19,6 +19,9 @@
 
 #pragma once
 
+#include "mdl/Entity.h"
+
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -31,6 +34,7 @@ namespace tb::mdl
 {
 class BrushNode;
 class BrushFace;
+class EntityNode;
 class EntityProperty;
 class GroupNode;
 class LayerNode;
@@ -64,6 +68,8 @@ private:
   bool m_exporting = false;
   bool m_stripTbProperties = false;
   bool m_omitSidecarProperties = false;
+  std::optional<std::string> m_stripEntityPattern;
+  std::optional<Entity> m_entityToAdd;
 
 public:
   virtual ~NodeSerializer();
@@ -83,6 +89,11 @@ public:
    * instead; see mdl::isSidecarPropertyKey. */
   bool omitSidecarProperties() const;
   void setOmitSidecarProperties(bool omitSidecarProperties);
+  const std::optional<std::string>& stripEntityPattern() const;
+  void setStripEntityPattern(std::optional<std::string> stripEntityPattern);
+
+  const std::optional<Entity>& entityToAdd() const;
+  void setEntityToAdd(std::optional<Entity> entityToAdd);
 
 public:
   /**
@@ -113,7 +124,7 @@ public:
     const Node& node,
     const std::vector<EntityProperty>& properties,
     const std::vector<EntityProperty>& parentProperties,
-    const std::vector<BrushNode*>& entityBrushes);
+    const std::vector<Node*>& children);
 
 private:
   void beginEntity(
@@ -126,9 +137,7 @@ private:
   void entityProperties(const std::vector<EntityProperty>& properties);
   void entityProperty(const EntityProperty& property);
 
-  void brushes(const std::vector<BrushNode*>& brushNodes);
   void brush(const BrushNode& brushNode);
-
   void patch(const PatchNode& patchNode);
 
 public:

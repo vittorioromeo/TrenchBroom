@@ -19,14 +19,12 @@
 
 #include "ui/ActionInfo.h"
 
-#include <QKeySequence>
-
-#include "PreferenceManager.h"
+#include "base/PreferenceManager.h"
 #include "ui/ActionContext.h"
 
+#include "kd/flat_map.h"
 #include "kd/ranges/enumerate_view.h"
 
-#include <map>
 #include <ranges>
 
 namespace tb::ui
@@ -38,7 +36,7 @@ namespace
 struct ActionConflictKey
 {
   ActionContext::Type actionContext;
-  QKeySequence keySequence;
+  KeySequence keySequence;
 
   bool operator<(const ActionConflictKey& other) const
   {
@@ -60,7 +58,7 @@ ActionInfo::ActionInfo(
   const ActionInfoType type,
   std::filesystem::path displayPath,
   const ActionContext::Type actionContext,
-  const Preference<std::vector<QKeySequence>>& keyboardShortcutPreference)
+  const Preference<std::vector<KeySequence>>& keyboardShortcutPreference)
   : m_type{type}
   , m_displayPath{std::move(displayPath)}
   , m_actionContext{actionContext}
@@ -83,8 +81,7 @@ ActionContext::Type ActionInfo::actionContext() const
   return m_actionContext;
 }
 
-const Preference<std::vector<QKeySequence>>& ActionInfo::keyboardShortcutPreference()
-  const
+const Preference<std::vector<KeySequence>>& ActionInfo::keyboardShortcutPreference() const
 {
   return *m_keyboardShortcutPreference;
 }
@@ -105,17 +102,20 @@ bool ActionInfo::operator==(const ActionInfo& other) const
   return m_type == other.m_type && m_displayPath == other.m_displayPath;
 }
 
-std::vector<size_t> findConflicts(const std::vector<ActionInfo>& actionInfos)
+std::unordered_set<size_t> findConflicts(const std::vector<ActionInfo>& actionInfos)
 {
-  auto entries = std::map<ActionConflictKey, size_t>{};
-  auto conflicts = std::vector<size_t>{};
+  auto& prefs = PreferenceManager::instance();
+
+  auto entries = kdl::flat_map<ActionConflictKey, size_t>{};
+  auto conflicts = std::unordered_set<size_t>{};
 
   for (const auto& [index, actionInfo] : actionInfos | kdl::views::enumerate)
   {
     const auto actionIndex = static_cast<size_t>(index);
-    for (const auto& keySequence : pref(actionInfo.keyboardShortcutPreference()))
+    for (const auto& keySequence :
+         prefs.getPendingValue(actionInfo.keyboardShortcutPreference()))
     {
-      if (keySequence.count() > 0)
+      if (!keySequence.value.empty())
       {
         const auto [it, noConflict] = entries.emplace(
           ActionConflictKey{actionInfo.actionContext(), keySequence}, actionIndex);
@@ -123,8 +123,8 @@ std::vector<size_t> findConflicts(const std::vector<ActionInfo>& actionInfos)
         {
           // found a duplicate, so there are conflicts
           const auto otherIndex = it->second;
-          conflicts.emplace_back(otherIndex);
-          conflicts.emplace_back(actionIndex);
+          conflicts.insert(otherIndex);
+          conflicts.insert(actionIndex);
         }
       }
     }

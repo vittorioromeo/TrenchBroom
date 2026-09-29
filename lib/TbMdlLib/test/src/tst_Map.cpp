@@ -17,9 +17,9 @@
  along with TrenchBroom. If not, see <http:www.gnu.org/licenses/>.
  */
 
-#include "Logger.h"
 #include "TestEnvironment.h"
 #include "TestLogger.h"
+#include "base/Logger.h"
 #include "fs/TestEnvironment.h"
 #include "gl/ResourceManager.h"
 #include "mdl/Brush.h"
@@ -50,15 +50,19 @@
 #include "mdl/TestFactory.h"
 #include "mdl/TestUtils.h"
 #include "mdl/WorldNode.h"
+#include "version/Version.h"
 
 #include "kd/vector_utils.h"
 
 #include "vm/vec_io.h" // IWYU pragma: keep
 
+#include <fmt/format.h>
+
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 #include <catch2/matchers/catch_matchers_predicate.hpp>
 #include <catch2/matchers/catch_matchers_quantifiers.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
 
 namespace tb::mdl
 {
@@ -137,7 +141,7 @@ TEST_CASE("Map")
     CHECK(!map.modified());
 
     auto* entityNode = new EntityNode{Entity{{{"key", "value"}}}};
-    addNodes(map, {{parentForNodes(map), {entityNode}}});
+    addNodes(map, {{&parentForNodes(map), {entityNode}}});
 
     CHECK(map.modified());
 
@@ -150,6 +154,19 @@ TEST_CASE("Map")
     }
   }
 
+  SECTION("saveTo writes the expected generator string")
+  {
+    auto fixture = MapFixture{};
+    auto& map = fixture.create();
+
+    auto env = fs::TestEnvironment{};
+    REQUIRE(map.saveTo(env.dir() / "test.map"));
+
+    const auto expectedGenerator =
+      fmt::format("// Generator: TrenchBroom {} (Build {})", VERSION_STR, BUILD_ID_STR);
+    CHECK_THAT(env.loadFile("test.map"), ContainsSubstring(expectedGenerator));
+  }
+
   SECTION("selection")
   {
     auto fixture = MapFixture{};
@@ -160,7 +177,7 @@ TEST_CASE("Map")
       auto* brushNode = createBrushNode(map);
       CHECK(brushNode->logicalBounds().center() == vm::vec3d{0, 0, 0});
 
-      addNodes(map, {{parentForNodes(map), {brushNode}}});
+      addNodes(map, {{&parentForNodes(map), {brushNode}}});
 
       const auto topFaceIndex = brushNode->brush().findFace(vm::vec3d{0, 0, 1});
       REQUIRE(topFaceIndex);
@@ -224,7 +241,7 @@ TEST_CASE("Map")
 
         addNodes(
           map,
-          {{parentForNodes(map),
+          {{&parentForNodes(map),
             {topLevelEntityNode,
              topLevelBrushEntityNode,
              topLevelBrushNode,
@@ -503,7 +520,7 @@ TEST_CASE("Map")
       auto* brushNode = createBrushNode(map);
       entityNode->addChild(brushNode);
 
-      addNodes(map, {{parentForNodes(map), {entityNode}}});
+      addNodes(map, {{&parentForNodes(map), {entityNode}}});
       selectNodes(map, {entityNode});
 
       auto* groupNode = groupSelectedNodes(map, "test");
@@ -551,7 +568,7 @@ TEST_CASE("Map")
     SECTION("Linked group")
     {
       auto* brushNode = createBrushNode(map);
-      addNodes(map, {{parentForNodes(map), {brushNode}}});
+      addNodes(map, {{&parentForNodes(map), {brushNode}}});
       selectNodes(map, {brushNode});
 
       auto* groupNode = groupSelectedNodes(map, "test");
@@ -569,7 +586,7 @@ TEST_CASE("Map")
     SECTION("Nodes in a linked group")
     {
       auto* brushNode = createBrushNode(map);
-      addNodes(map, {{parentForNodes(map), {brushNode}}});
+      addNodes(map, {{&parentForNodes(map), {brushNode}}});
       selectNodes(map, {brushNode});
 
       auto* groupNode = groupSelectedNodes(map, "test");
@@ -590,7 +607,7 @@ TEST_CASE("Map")
     SECTION("Groups in a linked group")
     {
       auto* brushNode = createBrushNode(map);
-      addNodes(map, {{parentForNodes(map), {brushNode}}});
+      addNodes(map, {{&parentForNodes(map), {brushNode}}});
       selectNodes(map, {brushNode});
 
       auto* innerGroupNode = groupSelectedNodes(map, "inner");
@@ -617,14 +634,14 @@ TEST_CASE("Map")
     SECTION("Nested groups")
     {
       auto* innerBrushNode = createBrushNode(map);
-      addNodes(map, {{parentForNodes(map), {innerBrushNode}}});
+      addNodes(map, {{&parentForNodes(map), {innerBrushNode}}});
       selectNodes(map, {innerBrushNode});
 
       auto* groupNode = groupSelectedNodes(map, "test");
       REQUIRE(groupNode != nullptr);
 
       auto* outerBrushNode = createBrushNode(map);
-      addNodes(map, {{parentForNodes(map), {outerBrushNode}}});
+      addNodes(map, {{&parentForNodes(map), {outerBrushNode}}});
 
       deselectAll(map);
       selectNodes(map, {groupNode, outerBrushNode});
@@ -655,7 +672,7 @@ TEST_CASE("Map")
       */
 
       auto* innerBrushNode = createBrushNode(map);
-      addNodes(map, {{parentForNodes(map), {innerBrushNode}}});
+      addNodes(map, {{&parentForNodes(map), {innerBrushNode}}});
       selectNodes(map, {innerBrushNode});
 
       auto* innerGroupNode = groupSelectedNodes(map, "inner");
@@ -670,7 +687,7 @@ TEST_CASE("Map")
       const auto linkedInnerBrushNode = getChildAs<BrushNode>(*linkedInnerGroupNode);
 
       auto* outerBrushNode = createBrushNode(map);
-      addNodes(map, {{parentForNodes(map), {outerBrushNode}}});
+      addNodes(map, {{&parentForNodes(map), {outerBrushNode}}});
 
       deselectAll(map);
       selectNodes(map, {innerGroupNode, linkedInnerGroupNode, outerBrushNode});

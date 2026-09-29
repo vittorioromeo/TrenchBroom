@@ -7,8 +7,9 @@ add_executable(DumpShortcuts
   ${DOC_MANUAL_SHORTCUTS_JS_TARGET_ABSOLUTE}
   ${DOC_MANUAL_TARGET_IMAGE_FILES_ABSOLUTE}
 )
+EMBED_UTF8_MANIFEST(DumpShortcuts)
 
-target_link_libraries(DumpShortcuts 
+target_link_libraries(DumpShortcuts
   PRIVATE 
     CompilerConfig
     KdLib
@@ -22,16 +23,6 @@ target_link_libraries(DumpShortcuts
 set_target_properties(DumpShortcuts PROPERTIES AUTOMOC TRUE)
 
 if(WIN32)
-    # Copy all transitive runtime DLL dependencies next to the executable so it can run
-    # in place (DumpShortcuts is executed during the build to generate the manual).
-    add_custom_command(TARGET DumpShortcuts POST_BUILD
-            COMMAND ${CMAKE_COMMAND}
-                    "-DTB_EXECUTABLE=$<TARGET_FILE:DumpShortcuts>"
-                    "-DTB_DEST_DIR=$<TARGET_FILE_DIR:DumpShortcuts>"
-                    "-DTB_SEARCH_DIRS=$<TARGET_FILE_DIR:freeimage::FreeImage>|$<TARGET_FILE_DIR:assimp::assimp>|$<TARGET_FILE_DIR:freetype>|$<TARGET_FILE_DIR:tinyxml2::tinyxml2>|$<TARGET_FILE_DIR:miniz::miniz>"
-                    -P "${CMAKE_SOURCE_DIR}/app/TrenchBroom/cmake/CopyRuntimeDependencies.cmake"
-            VERBATIM)
-    
     # Run windeployqt which copies the Qt dlls into the deployable folder, along with necessary runtime dlls by the compiler
     if(NOT TB_SKIP_WINDEPLOYQT)
         message(STATUS "windeployqt requested")

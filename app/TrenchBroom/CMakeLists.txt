@@ -91,6 +91,9 @@ endif()
 
 # Set up resource compilation for Windows
 if(WIN32)
+    # Generate the UTF-8 code page manifest referenced by TrenchBroom.rc.in below.
+    CONFIGURE_UTF8_MANIFEST(TrenchBroom TB_UTF8_MANIFEST_PATH)
+
     # Create the windows resource file
     configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/TrenchBroom.rc.in" "${CMAKE_CURRENT_BINARY_DIR}/TrenchBroom.rc" @ONLY)
 
@@ -112,6 +115,12 @@ get_build_platform(APP_PLATFORM_NAME)
 # Create the executable target and link with libraries
 add_executable(TrenchBroom WIN32 MACOSX_BUNDLE)
 target_sources(TrenchBroom PRIVATE ${APP_SOURCE} ${INDEX_OUTPUT_PATH} ${DOC_MANUAL_TARGET_FILES_ABSOLUTE} ${DOC_MANUAL_SHORTCUTS_JS_TARGET_ABSOLUTE} ${DOC_MANUAL_TARGET_IMAGE_FILES_ABSOLUTE})
+
+if(WIN32 AND COMPILER_IS_MSVC)
+    # We embed our own application manifest via TrenchBroom.rc; tell the linker not to
+    # generate and embed a second one (which would conflict with the RT_MANIFEST resource).
+    target_link_options(TrenchBroom PRIVATE "/MANIFEST:NO")
+endif()
 
 if(APPLE)
     target_sources(TrenchBroom PRIVATE "$<$<CONFIG:Debug>:${MACOSX_GAME_TESTING_SOURCE_FILES}>")
@@ -188,8 +197,20 @@ if(APPLE)
                         "$<TARGET_BUNDLE_DIR:TrenchBroom>"
                 VERBATIM)
         else()
+            # macdeployqt copies the Qt frameworks into the bundle after the executable
+            # was linked, which invalidates the linker's ad-hoc signature (the bundle ends
+            # up with no CodeResources seal). Gatekeeper then rejects the app as "damaged".
+            # Re-sign the whole bundle ad-hoc so it has a valid seal. The app still isn't
+            # notarized, so users must clear quarantine, but it is no longer reported as
+            # damaged.
             add_custom_command(TARGET TrenchBroom POST_BUILD
-                COMMAND "${TB_MACDEPLOYQT_PATH}" "$<TARGET_BUNDLE_DIR:TrenchBroom>")
+                COMMAND "${TB_MACDEPLOYQT_PATH}" "$<TARGET_BUNDLE_DIR:TrenchBroom>"
+                COMMAND "codesign"
+                        "--force"
+                        "--deep"
+                        "--sign" "-"
+                        "$<TARGET_BUNDLE_DIR:TrenchBroom>"
+                VERBATIM)
         endif()
     endif()
 endif()
@@ -201,24 +222,6 @@ if(WIN32)
             COMMAND ${CMAKE_COMMAND} -E copy "${TB_RESOURCE_DIR}/win32/icons/AppIcon.ico"    "${CMAKE_CURRENT_BINARY_DIR}"
             COMMAND ${CMAKE_COMMAND} -E copy "${TB_RESOURCE_DIR}/win32/icons/DocIcon.ico"    "${CMAKE_CURRENT_BINARY_DIR}"
             COMMAND ${CMAKE_COMMAND} -E copy "${TB_RESOURCE_DIR}/win32/icons/WindowIcon.ico" "${CMAKE_CURRENT_BINARY_DIR}")
-
-    # Copy the whole transitive runtime-DLL closure into the build output directory so
-    # that TrenchBroom can be run in place from the build tree. A hand-maintained list
-    # (assimp, freeimage, freetype, tinyxml2, miniz) is not enough: freeimage pulls in
-    # tiff, zlib, openexr, imath, libjpeg-turbo, libpng, openjpeg, jxrlib, libraw and
-    # libwebp, and some of these (e.g. libraw / rawd.dll) are imported deep inside
-    # freeimage.dll rather than linked by TrenchBroom, so even $<TARGET_RUNTIME_DLLS>
-    # misses them. Resolve the closure from the actual PE import tables instead, the
-    # same way the install / CPack step does. The vcpkg bin directory for the current
-    # configuration (Debug or Release) is derived from a dependency's imported
-    # location and passed as a search directory.
-    add_custom_command(TARGET TrenchBroom POST_BUILD
-            COMMAND ${CMAKE_COMMAND}
-                    "-DTB_EXECUTABLE=$<TARGET_FILE:TrenchBroom>"
-                    "-DTB_DEST_DIR=$<TARGET_FILE_DIR:TrenchBroom>"
-                    "-DTB_SEARCH_DIRS=$<TARGET_FILE_DIR:freeimage::FreeImage>|$<TARGET_FILE_DIR:assimp::assimp>|$<TARGET_FILE_DIR:freetype>|$<TARGET_FILE_DIR:tinyxml2::tinyxml2>|$<TARGET_FILE_DIR:miniz::miniz>"
-                    -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CopyRuntimeDependencies.cmake"
-            VERBATIM)
 
     # Run windeployqt which copies the Qt dlls into the deployable folder, along with necessary runtime dlls by the compiler
     # Only copy translations on release builds, as deploying them takes significantly longer
@@ -501,5 +504,15 @@ elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     set(CPACK_EXTERNAL_ENABLE_STAGING True)
     set(CPACK_GENERATOR "External")
 endif()
+
+# FetchContent_Declare(... EXCLUDE_FROM_ALL) on every dependency in
+# cmake/dependencies/ keeps their install() rules from running at all, so no
+# dev artifacts (headers, pkgconfig, *_development, Unspecified components)
+# reach the install tree. This is a second line of defense: on Linux, having
+# more than one component present makes CPack stage each into its own
+# <component>/usr/... subdirectory instead of merging them into usr/
+# directly, which broke linuxdeploy's executable lookup. Restrict packaging
+# to just the component we actually ship, on every platform.
+set(CPACK_COMPONENTS_ALL "TrenchBroom")
 
 include(CPack)

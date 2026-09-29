@@ -19,9 +19,10 @@
 
 #pragma once
 
-#include "Result.h"
+#include "base/Result.h"
 #include "mdl/Palette.h"
 
+#include <filesystem>
 #include <optional>
 
 namespace tb
@@ -38,6 +39,8 @@ class Reader;
 
 namespace mdl
 {
+
+bool isWalTexture(const std::filesystem::path& path);
 
 Result<gl::Texture> loadWalTexture(
   fs::Reader& reader, const std::optional<Palette>& palette);

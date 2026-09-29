@@ -19,32 +19,21 @@
 
 #pragma once
 
-#include "Color.h"
 #include "gl/GlUtils.h"
 #include "gl/TextureResource.h"
 
+#include "kd/flat_set.h"
 #include "kd/reflection_decl.h"
 
 #include <atomic>
 #include <filesystem>
 #include <memory>
-#include <set>
+#include <optional>
 #include <string>
 
 namespace tb::gl
 {
 class Gl;
-
-enum class TextureType
-{
-  Opaque,
-  /**
-   * Modifies texture uploading to support mask textures.
-   */
-  Masked
-};
-
-std::ostream& operator<<(std::ostream& lhs, const TextureType& rhs);
 
 enum class MaterialCulling
 {
@@ -84,6 +73,28 @@ struct MaterialBlendFunc
 
 std::ostream& operator<<(std::ostream& lhs, const MaterialBlendFunc::Enable& rhs);
 
+/**
+ * A hard alpha-test cutout: keep the fragment when its alpha compares to `threshold`
+ * according to `compare`, discard it otherwise. Mirrors Quake 3's alphaFunc directive
+ * (GE128/LT128/GT0), which is independent of (and combinable with) blendFunc.
+ */
+struct MaterialAlphaFunc
+{
+  enum class Compare
+  {
+    GreaterEqual,
+    Less,
+    Greater,
+  };
+
+  Compare compare;
+  float threshold;
+
+  kdl_reflect_decl(MaterialAlphaFunc, compare, threshold);
+};
+
+std::ostream& operator<<(std::ostream& lhs, const MaterialAlphaFunc::Compare& rhs);
+
 class Material
 {
 private:
@@ -98,7 +109,7 @@ private:
 
   // Quake 3 surface parameters; move these to materials when we add proper support for
   // those.
-  std::set<std::string> m_surfaceParms;
+  kdl::flat_set<std::string> m_surfaceParms;
 
   // Quake 3 surface culling; move to materials
   MaterialCulling m_culling = MaterialCulling::Default;
@@ -106,6 +117,12 @@ private:
   // Quake 3 blend function, move to materials
   MaterialBlendFunc m_blendFunc = {
     MaterialBlendFunc::Enable::UseDefault, GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA};
+
+  // Explicit alpha-test (hard cutout) override. When unset, effectiveAlphaFunc() and
+  // effectiveBlendFunc() fall back to the texture's ImageAlphaDomain, since some
+  // formats can only classify their alpha channel once the pixel data is decoded, which
+  // may happen after this material is constructed.
+  std::optional<MaterialAlphaFunc> m_alphaFunc;
 
   kdl_reflect_decl(
     Material,
@@ -117,7 +134,8 @@ private:
     m_usageCount,
     m_surfaceParms,
     m_culling,
-    m_blendFunc);
+    m_blendFunc,
+    m_alphaFunc);
 
 public:
   Material(std::string name, std::shared_ptr<TextureResource> textureResource);
@@ -152,14 +170,19 @@ public:
 
   const TextureResource& textureResource() const;
 
-  const std::set<std::string>& surfaceParms() const;
-  void setSurfaceParms(std::set<std::string> surfaceParms);
+  const kdl::flat_set<std::string>& surfaceParms() const;
+  void setSurfaceParms(kdl::flat_set<std::string> surfaceParms);
 
   MaterialCulling culling() const;
   void setCulling(MaterialCulling culling);
 
   void setBlendFunc(GLenum srcFactor, GLenum destFactor);
   void disableBlend();
+
+  void setAlphaFunc(MaterialAlphaFunc::Compare compare, float threshold);
+
+  std::optional<MaterialAlphaFunc> effectiveAlphaFunc() const;
+  MaterialBlendFunc effectiveBlendFunc() const;
 
   size_t usageCount() const;
   void incUsageCount() const;
@@ -171,7 +194,5 @@ public:
 
 const Texture* getTexture(const Material* material);
 Texture* getTexture(Material* material);
-
-RgbF gridColorForMaterial(const gl::Material* material);
 
 } // namespace tb::gl

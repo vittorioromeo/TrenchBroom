@@ -19,8 +19,8 @@
 
 #include "mdl/Map.h"
 
-#include "Logger.h"
-#include "SimpleParserStatus.h"
+#include "base/Logger.h"
+#include "base/SimpleParserStatus.h"
 #include "fs/DiskIO.h"
 #include "fs/PathInfo.h"
 #include "gl/Material.h"
@@ -50,7 +50,7 @@
 #include "mdl/GameInfo.h"
 #include "mdl/Grid.h"
 #include "mdl/GroupNode.h"
-#include "mdl/InvalidUVScaleValidator.h"
+#include "mdl/InvalidUvScaleValidator.h"
 #include "mdl/Issue.h"
 #include "mdl/LayerNode.h"
 #include "mdl/LinkSourceValidator.h"
@@ -103,6 +103,7 @@
 #include "mdl/WorldNode.h" // IWYU pragma: keep
 #include "mdl/WorldNodePathSeparatorValidator.h"
 #include "mdl/WorldReader.h"
+#include "version/Version.h"
 
 #include "kd/contracts.h"
 #include "kd/path_utils.h"
@@ -248,8 +249,11 @@ Result<std::unique_ptr<WorldNode>> createWorldNode(
   if (!config.forceEmptyNewMap)
   {
     const auto builder = BrushBuilder{
-      worldNode->mapFormat(), worldBounds, config.faceAttribsConfig.defaults};
-    builder.createCuboid({128.0, 128.0, 32.0}, BrushFaceAttributes::NoMaterialName)
+      worldNode->mapFormat(),
+      worldBounds,
+      config.faceAttribsConfig.defaultUvAttributes,
+      config.faceAttribsConfig.defaultSurfaceAttributes};
+    builder.createCuboid({128.0, 128.0, 32.0}, BrushFace::NoMaterialName)
       | kdl::transform(
         [&](auto b) { worldNode->defaultLayer()->addChild(new BrushNode{std::move(b)}); })
       | kdl::transform_error(
@@ -359,7 +363,7 @@ auto makeSetMaterialsVisitor(gl::MaterialManager& manager)
       for (size_t i = 0u; i < brush.faceCount(); ++i)
       {
         const auto& face = brush.face(i);
-        auto* material = manager.material(face.attributes().materialName());
+        auto* material = manager.material(face.materialName());
         brushNode.setFaceMaterial(i, material);
       }
     },
@@ -570,7 +574,7 @@ Map::Map(
   , m_worldBounds{worldBounds}
   , m_nodeIndex{std::make_unique<NodeIndex>()}
   , m_entityLinkManager{std::make_unique<EntityLinkManager>(*m_nodeIndex)}
-  , m_currentMaterialName{BrushFaceAttributes::NoMaterialName}
+  , m_currentMaterialName{BrushFace::NoMaterialName}
   , m_repeatStack{std::make_unique<RepeatStack>()}
   , m_commandProcessor{std::make_unique<CommandProcessor>(*this)}
   , m_path{std::move(path)}
@@ -885,8 +889,12 @@ Result<void> Map::saveTo(const std::filesystem::path& path) const
 
   m_logger.info() << "Saving document to " << path;
 
+  const auto generator =
+    fmt::format("TrenchBroom {} (Build {})", VERSION_STR, BUILD_ID_STR);
+
   fs::Disk::withOutputStream(path, [&](auto& stream) {
-    writeMapHeader(stream, gameInfo().gameConfig.name, m_worldNode->mapFormat());
+    writeMapHeader(
+      stream, gameInfo().gameConfig.name, m_worldNode->mapFormat(), generator);
 
     auto writer = NodeWriter{*m_worldNode, stream};
     writer.setExporting(false);
@@ -939,6 +947,8 @@ Result<void> Map::exportAs(const ExportOptions& options) const
           // An export is for a compiler, not for editing, so the tool data is left out
           // and no sidecar is written alongside it.
           writer.setOmitSidecarProperties(true);
+          writer.setStripEntityPattern(mapOptions.stripEntityPattern);
+          writer.setEntityToAdd(mapOptions.entityToAdd);
           writer.writeMap(m_taskManager);
         });
       }),
@@ -1038,31 +1048,6 @@ void Map::registerSmartTags()
 {
   m_tagManager->clearSmartTags();
   m_tagManager->registerSmartTags(gameInfo().gameConfig.smartTags);
-}
-
-const std::vector<SmartTag>& Map::smartTags() const
-{
-  return m_tagManager->smartTags();
-}
-
-bool Map::isRegisteredSmartTag(const std::string& name) const
-{
-  return m_tagManager->isRegisteredSmartTag(name);
-}
-
-const SmartTag& Map::smartTag(const std::string& name) const
-{
-  return m_tagManager->smartTag(name);
-}
-
-bool Map::isRegisteredSmartTag(const size_t index) const
-{
-  return m_tagManager->isRegisteredSmartTag(index);
-}
-
-const SmartTag& Map::smartTag(const size_t index) const
-{
-  return m_tagManager->smartTag(index);
 }
 
 void Map::initializeAllNodeTags()
@@ -1170,7 +1155,7 @@ void Map::registerValidators()
   m_worldNode->registerValidator(
     std::make_unique<PropertyValueWithDoubleQuotationMarksValidator>());
   m_worldNode->registerValidator(std::make_unique<WorldNodePathSeparatorValidator>());
-  m_worldNode->registerValidator(std::make_unique<InvalidUVScaleValidator>());
+  m_worldNode->registerValidator(std::make_unique<InvalidUvScaleValidator>());
 }
 
 void Map::setIssueHidden(const Issue& issue, const bool hidden)
@@ -1352,6 +1337,12 @@ void Map::loadMaterials()
       gameInfo().gameConfig.materialConfig.root, searchPaths, wadPaths, logger());
   }
 
+  // rescans the loose-file search path mounts (e.g. reloadWads above only replaces the
+  // wad mounts, it doesn't pick up files added to or removed from disk directories)
+  m_gameFileSystem->reload() | kdl::transform_error([&](auto e) {
+    m_logger.error() << "Could not reload game file systems: " + e.msg;
+  });
+
   m_materialManager->clear();
 
   loadMaterialCollections(
@@ -1398,7 +1389,7 @@ void Map::setMaterials(const std::vector<BrushFaceHandle>& faceHandles)
   {
     BrushNode* node = faceHandle.node();
     const BrushFace& face = faceHandle.face();
-    auto* material = m_materialManager->material(face.attributes().materialName());
+    auto* material = m_materialManager->material(face.materialName());
     node->setFaceMaterial(faceHandle.faceIndex(), material);
   }
   materialUsageCountsDidChangeNotifier();

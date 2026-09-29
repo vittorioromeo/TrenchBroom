@@ -142,7 +142,7 @@ TEST_CASE("SplineEntity")
     CHECK(parsed.front().bounds().max == vm::approx{vm::vec3d{64, 16, 16}});
     for (const auto& face : parsed.front().faces())
     {
-      CHECK(face.attributes().materialName() == "some_material");
+      CHECK(face.materialName() == "some_material");
     }
 
     SECTION("an empty snapshot removes stored brushes")

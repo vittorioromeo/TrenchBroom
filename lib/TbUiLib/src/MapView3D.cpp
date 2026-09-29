@@ -22,8 +22,7 @@
 #include <QOpenGLContext>
 #include <QTimer>
 
-#include "PreferenceManager.h"
-#include "Preferences.h"
+#include "base/PreferenceManager.h"
 #include "gl/PerspectiveCamera.h"
 #include "mdl/BezierPatch.h"
 #include "mdl/BrushFace.h"
@@ -39,6 +38,7 @@
 #include "mdl/PickResult.h"
 #include "mdl/PointTrace.h"
 #include "mdl/WorldNode.h"
+#include "prefs/Preferences.h"
 #include "render/BoundsGuideRenderer.h"
 #include "render/Compass3D.h"
 #include "render/LightPreview.h"
@@ -46,6 +46,7 @@
 #include "render/RenderBatch.h"
 #include "render/RenderContext.h"
 #include "render/SelectionBoundsRenderer.h"
+#include "ui/AnimationManager.h"
 #include "ui/AssembleBrushToolController3D.h"
 #include "ui/CameraAnimation.h"
 #include "ui/CameraTool3D.h"
@@ -72,6 +73,7 @@
 #include "ui/ShearToolController.h"
 #include "ui/SplineToolController.h"
 #include "ui/TerrainToolController.h"
+#include "ui/SweepToolController.h"
 #include "ui/VertexTool.h"
 #include "ui/VertexToolController.h"
 
@@ -102,6 +104,11 @@ MapView3D::MapView3D(
 
 MapView3D::~MapView3D() = default;
 
+const gl::PerspectiveCamera& MapView3D::perspectiveCamera() const
+{
+  return *m_camera;
+}
+
 void MapView3D::initializeCamera()
 {
   m_camera->moveTo(vm::vec3f{-80.0f, -128.0f, 96.0f});
@@ -114,6 +121,7 @@ void MapView3D::initializeToolChain(MapViewToolBox& toolBox)
   addToolController(
     std::make_unique<MoveObjectsToolController>(toolBox.moveObjectsTool()));
   addToolController(std::make_unique<RotateToolController3D>(toolBox.rotateTool()));
+  addToolController(std::make_unique<SweepToolController3D>(toolBox.sweepTool()));
   addToolController(std::make_unique<ScaleToolController3D>(toolBox.scaleTool()));
   addToolController(std::make_unique<ShearToolController3D>(toolBox.shearTool()));
   addToolController(std::make_unique<ExtrudeToolController3D>(toolBox.extrudeTool()));

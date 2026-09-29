@@ -27,7 +27,7 @@ namespace tb::gl::Shaders
 inline const ShaderConfig Grid2DShader = ShaderConfig{
   "2D Grid",
   {"Grid2D.vertsh"},
-  {"Grid.fragsh", "Grid2D.fragsh"},
+  {"GridCommon.fragsh", "Grid.fragsh", "Grid2D.fragsh"},
 };
 
 inline const ShaderConfig VaryingPCShader = ShaderConfig{
@@ -51,19 +51,27 @@ inline const ShaderConfig MiniMapEdgeShader = ShaderConfig{
 inline const ShaderConfig EntityModelShader = ShaderConfig{
   "Entity Model",
   {"EntityModel.vertsh"},
-  {"MapBounds.fragsh", "EntityModel.fragsh"},
+  {"AlphaFunc.fragsh", "MapBounds.fragsh", "EntityModel.fragsh"},
 };
 
 inline const ShaderConfig FaceShader = ShaderConfig{
   "Face",
   {"Face.vertsh"},
-  {"Grid.fragsh", "MapBounds.fragsh", "Face.fragsh"},
+  {"AlphaFunc.fragsh",
+   "GridCommon.fragsh",
+   "Grid.fragsh",
+   "MapBounds.fragsh",
+   "Face.fragsh"},
 };
 
 inline const ShaderConfig PatchShader = ShaderConfig{
   "Patch",
   {"Face.vertsh"},
-  {"Grid.fragsh", "MapBounds.fragsh", "Face.fragsh"},
+  {"AlphaFunc.fragsh",
+   "GridCommon.fragsh",
+   "Grid.fragsh",
+   "MapBounds.fragsh",
+   "Face.fragsh"},
 };
 
 inline const ShaderConfig LightPreviewShader = ShaderConfig{
@@ -99,7 +107,7 @@ inline const ShaderConfig TextBackgroundShader = ShaderConfig{
 inline const ShaderConfig MaterialBrowserShader = ShaderConfig{
   "Material Browser",
   {"MaterialBrowser.vertsh"},
-  {"MaterialBrowser.fragsh"},
+  {"AlphaFunc.fragsh", "MaterialBrowser.fragsh"},
 };
 
 inline const ShaderConfig MaterialBrowserBorderShader = ShaderConfig{
@@ -156,10 +164,10 @@ inline const ShaderConfig TriangleShader = ShaderConfig{
   {"Triangle.fragsh"},
 };
 
-inline const ShaderConfig UVViewShader = ShaderConfig{
+inline const ShaderConfig UvViewShader = ShaderConfig{
   "UV View",
-  {"UVView.vertsh"},
-  {"UVView.fragsh"},
+  {"UvView.vertsh"},
+  {"AlphaFunc.fragsh", "GridCommon.fragsh", "UvView.fragsh"},
 };
 
 } // namespace tb::gl::Shaders

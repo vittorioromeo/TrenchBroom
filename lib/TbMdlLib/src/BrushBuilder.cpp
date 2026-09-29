@@ -38,161 +38,16 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 #include <ranges>
 #include <string>
 #include <utility>
 
 namespace tb::mdl
 {
-
-BrushBuilder::BrushBuilder(const MapFormat mapFormat, const vm::bbox3d& worldBounds)
-  : m_mapFormat{mapFormat}
-  , m_worldBounds{worldBounds}
-  , m_defaultAttribs{BrushFaceAttributes::NoMaterialName}
-{
-}
-
-BrushBuilder::BrushBuilder(
-  const MapFormat mapFormat,
-  const vm::bbox3d& worldBounds,
-  BrushFaceAttributes defaultAttribs)
-  : m_mapFormat{mapFormat}
-  , m_worldBounds{worldBounds}
-  , m_defaultAttribs{std::move(defaultAttribs)}
-{
-}
-
-Result<Brush> BrushBuilder::createCube(
-  const double size, const std::string& materialName) const
-{
-  return createCuboid(
-    vm::bbox3d{size / 2.0},
-    materialName,
-    materialName,
-    materialName,
-    materialName,
-    materialName,
-    materialName);
-}
-
-Result<Brush> BrushBuilder::createCube(
-  double size,
-  const std::string& leftMaterial,
-  const std::string& rightMaterial,
-  const std::string& frontMaterial,
-  const std::string& backMaterial,
-  const std::string& topMaterial,
-  const std::string& bottomMaterial) const
-{
-  return createCuboid(
-    vm::bbox3d{size / 2.0},
-    leftMaterial,
-    rightMaterial,
-    frontMaterial,
-    backMaterial,
-    topMaterial,
-    bottomMaterial);
-}
-
-Result<Brush> BrushBuilder::createCuboid(
-  const vm::vec3d& size, const std::string& materialName) const
-{
-  return createCuboid(
-    vm::bbox3d{-size / 2.0, size / 2.0},
-    materialName,
-    materialName,
-    materialName,
-    materialName,
-    materialName,
-    materialName);
-}
-
-Result<Brush> BrushBuilder::createCuboid(
-  const vm::vec3d& size,
-  const std::string& leftMaterial,
-  const std::string& rightMaterial,
-  const std::string& frontMaterial,
-  const std::string& backMaterial,
-  const std::string& topMaterial,
-  const std::string& bottomMaterial) const
-{
-  return createCuboid(
-    vm::bbox3d{-size / 2.0, size / 2.0},
-    leftMaterial,
-    rightMaterial,
-    frontMaterial,
-    backMaterial,
-    topMaterial,
-    bottomMaterial);
-}
-
-Result<Brush> BrushBuilder::createCuboid(
-  const vm::bbox3d& bounds, const std::string& materialName) const
-{
-  return createCuboid(
-    bounds,
-    materialName,
-    materialName,
-    materialName,
-    materialName,
-    materialName,
-    materialName);
-}
-
-Result<Brush> BrushBuilder::createCuboid(
-  const vm::bbox3d& bounds,
-  const std::string& leftMaterial,
-  const std::string& rightMaterial,
-  const std::string& frontMaterial,
-  const std::string& backMaterial,
-  const std::string& topMaterial,
-  const std::string& bottomMaterial) const
-{
-  return std::vector{
-           BrushFace::create(
-             bounds.min,
-             bounds.min + vm::vec3d{0, 1, 0},
-             bounds.min + vm::vec3d{0, 0, 1},
-             {leftMaterial, m_defaultAttribs},
-             m_mapFormat), // left
-           BrushFace::create(
-             bounds.max,
-             bounds.max + vm::vec3d{0, 0, 1},
-             bounds.max + vm::vec3d{0, 1, 0},
-             {rightMaterial, m_defaultAttribs},
-             m_mapFormat), // right
-           BrushFace::create(
-             bounds.min,
-             bounds.min + vm::vec3d{0, 0, 1},
-             bounds.min + vm::vec3d{1, 0, 0},
-             {frontMaterial, m_defaultAttribs},
-             m_mapFormat), // front
-           BrushFace::create(
-             bounds.max,
-             bounds.max + vm::vec3d{1, 0, 0},
-             bounds.max + vm::vec3d{0, 0, 1},
-             {backMaterial, m_defaultAttribs},
-             m_mapFormat), // back
-           BrushFace::create(
-             bounds.max,
-             bounds.max + vm::vec3d{0, 1, 0},
-             bounds.max + vm::vec3d{1, 0, 0},
-             {topMaterial, m_defaultAttribs},
-             m_mapFormat), // top
-           BrushFace::create(
-             bounds.min,
-             bounds.min + vm::vec3d{1, 0, 0},
-             bounds.min + vm::vec3d{0, 1, 0},
-             {bottomMaterial, m_defaultAttribs},
-             m_mapFormat), // bottom
-         }
-         | kdl::fold | kdl::and_then([&](auto faces) {
-             return Brush::create(m_worldBounds, std::move(faces));
-           });
-}
-
 namespace
 {
+
 auto makeEdgeAlignedCircle(const size_t numSides, const vm::bbox2d& bounds)
 {
   contract_pre(numSides > 2);
@@ -328,24 +183,6 @@ auto makeCylinder(const CircleShape& circleShape, const vm::bbox3d& boundsXY)
   return vertices;
 }
 
-} // namespace
-
-Result<Brush> BrushBuilder::createCylinder(
-  const vm::bbox3d& bounds,
-  const CircleShape& circleShape,
-  const vm::axis::type axis,
-  const std::string& textureName) const
-{
-  const auto toXY = vm::rotation_matrix(vm::vec3d::axis(axis), vm::vec3d{0, 0, 1});
-  const auto fromXY = vm::rotation_matrix(vm::vec3d{0, 0, 1}, vm::vec3d::axis(axis));
-
-  const auto cylinder = makeCylinder(circleShape, bounds.transform(toXY));
-  return createBrush(fromXY * cylinder, textureName);
-}
-
-namespace
-{
-
 auto makeVerticesForWedges(
   const std::vector<vm::vec2d>& outerCircle, const vm::bbox2d& bounds)
 {
@@ -455,46 +292,6 @@ auto makeHollowCylinderFragmentVertices(
   return brushVertices;
 }
 
-} // namespace
-
-Result<std::vector<Brush>> BrushBuilder::createHollowCylinder(
-  const vm::bbox3d& bounds,
-  const double thickness,
-  const CircleShape& circleShape,
-  const vm::axis::type axis,
-  const std::string& textureName) const
-{
-  const auto toXY = vm::rotation_matrix(vm::vec3d::axis(axis), vm::vec3d{0, 0, 1});
-  const auto fromXY = vm::rotation_matrix(vm::vec3d{0, 0, 1}, vm::vec3d::axis(axis));
-  const auto boundsXY = bounds.transform(toXY);
-
-  const auto outerCircle = makeCircle(circleShape, boundsXY.xy());
-
-  return makeHollowCylinderInnerCircle(outerCircle, thickness, circleShape, boundsXY.xy())
-    .and_then([&](const auto& innerCircle) {
-      contract_assert(innerCircle.size() == outerCircle.size());
-
-      const auto numFragments = outerCircle.size();
-
-      auto brushes = std::vector<Result<Brush>>{};
-      brushes.reserve(numFragments);
-
-      for (size_t i = 0; i < numFragments; ++i)
-      {
-        const auto fragmentVertices =
-          makeHollowCylinderFragmentVertices(outerCircle, innerCircle, i, boundsXY);
-        const auto rotatedFragmentVertices = fromXY * fragmentVertices;
-
-        brushes.push_back(createBrush(rotatedFragmentVertices, textureName));
-      }
-
-      return brushes | kdl::fold;
-    });
-}
-
-namespace
-{
-
 // Maps the tunnel (extrusion) axis to the span and vertical axes of the arch's
 // cross-section. Arches rise along world Z where possible so they stand upright.
 struct ArchAxes
@@ -524,14 +321,72 @@ vm::vec2d crossingAtV(const vm::vec2d& a, const vm::vec2d& b, const double v)
   return vm::vec2d{a.x() + (b.x() - a.x()) * t, v};
 }
 
-} // namespace
+// Returns the normal of segment a->b that points away from the given center.
+vm::vec2d outwardNormal(const vm::vec2d& a, const vm::vec2d& b, const vm::vec2d& center)
+{
+  const auto d = b - a;
+  const auto normal = vm::vec2d{-d.y(), d.x()};
+  return vm::dot(normal, (a + b) / 2.0 - center) < 0.0 ? -normal : normal;
+}
 
-Result<std::vector<Brush>> BrushBuilder::createArch(
-  const vm::bbox3d& bounds,
-  const double thickness,
-  const CircleShape& circleShape,
-  const vm::axis::type axis,
-  const std::string& textureName) const
+// Indices of the contiguous run of circle vertices at or above the springing line.
+std::vector<size_t> archUpperRun(const std::vector<vm::vec2d>& circle, const double vMin)
+{
+  const auto n = circle.size();
+  const auto isUpper = [&](const size_t i) { return circle[i].y() >= vMin; };
+
+  // Start of the contiguous upper run: an upper vertex whose predecessor is below.
+  const auto firstUpper = kdl::index_of(std::views::iota(0u, n), [&](const auto i) {
+    return isUpper(i) && !isUpper((i + n - 1) % n);
+  });
+
+  if (!firstUpper)
+  {
+    return {};
+  }
+
+  return std::views::iota(0u, n)
+         | std::views::transform([&](const auto i) { return (*firstUpper + i) % n; })
+         | std::views::take_while(isUpper) | kdl::ranges::to<std::vector>();
+}
+
+// Walks the given run along the given circle, capping both ends with a foot on the
+// springing line so that the arch sits flat.
+std::vector<vm::vec2d> archBoundary(
+  const std::vector<vm::vec2d>& circle,
+  const std::vector<size_t>& upper,
+  const double vMin)
+{
+  const auto n = circle.size();
+  const auto first = upper.front();
+  const auto last = upper.back();
+  const auto beforeFirst = (first + n - 1) % n;
+  const auto afterLast = (last + 1) % n;
+
+  auto boundary = std::vector<vm::vec2d>{};
+  boundary.reserve(upper.size() + 2);
+  boundary.push_back(crossingAtV(circle[beforeFirst], circle[first], vMin));
+  for (const auto i : upper)
+  {
+    boundary.emplace_back(circle[i].x(), std::max(circle[i].y(), vMin));
+  }
+  boundary.push_back(crossingAtV(circle[last], circle[afterLast], vMin));
+  return boundary;
+}
+
+// The cross-section an arch is built from: the axes it is laid out on, the circle its
+// band follows and the boundary of its outside, running from one foot to the other.
+struct ArchCrossSection
+{
+  ArchAxes axes;
+  vm::bbox2d circleBounds;
+  std::vector<vm::vec2d> circle;
+  std::vector<size_t> upper;
+  std::vector<vm::vec2d> outerBoundary;
+};
+
+std::optional<ArchCrossSection> makeArchCrossSection(
+  const vm::bbox3d& bounds, const CircleShape& circleShape, const vm::axis::type axis)
 {
   const auto axes = archAxes(axis);
 
@@ -539,15 +394,13 @@ Result<std::vector<Brush>> BrushBuilder::createArch(
   const auto sMax = bounds.max[axes.span];
   const auto vMin = bounds.min[axes.vertical];
   const auto vMax = bounds.max[axes.vertical];
-  const auto wMin = bounds.min[axes.tunnel];
-  const auto wMax = bounds.max[axes.tunnel];
   const auto height = vMax - vMin;
   const auto span = sMax - sMin;
 
   // The bounds are often degenerate mid-drag; emit no brushes rather than erroring.
   if (height <= 0.0 || span <= 0.0)
   {
-    return Result<std::vector<Brush>>{std::vector<Brush>{}};
+    return std::nullopt;
   }
 
   // Upper half of an ellipse whose diameter lies on the springing line (v == vMin). Build
@@ -555,90 +408,27 @@ Result<std::vector<Brush>> BrushBuilder::createArch(
   // reusing the cylinder circle-mode machinery.
   const auto circleBounds = vm::bbox2d{{sMin, vMin - height}, {sMax, vMax}};
 
-  const auto outer = makeCircle(circleShape, circleBounds);
+  auto circle = makeCircle(circleShape, circleBounds);
+  auto upper = archUpperRun(circle, vMin);
+  if (upper.empty())
+  {
+    return std::nullopt;
+  }
 
-  return makeHollowCylinderInnerCircle(outer, thickness, circleShape, circleBounds)
-         | kdl::transform([&](const auto& inner) {
-             contract_assert(inner.size() == outer.size());
-             const auto n = outer.size();
-
-             const auto isUpper = [&](const size_t i) { return outer[i].y() >= vMin; };
-
-             // Start of the contiguous upper run: an upper vertex whose predecessor is
-             // below.
-             const auto firstUpper = kdl::index_of(
-               std::views::iota(0u, n),
-               [&](const auto i) { return isUpper(i) && !isUpper((i + n - 1) % n); });
-
-             if (!firstUpper)
-             {
-               return std::vector<Brush>{};
-             }
-
-             const auto upper =
-               std::views::iota(0u, n) | std::views::transform([&](const auto i) {
-                 return (*firstUpper + i) % n;
-               })
-               | std::views::take_while(isUpper) | kdl::ranges::to<std::vector>();
-
-             // Cap both ends with a foot on the springing line so the arch sits flat.
-             const auto first = upper.front();
-             const auto last = upper.back();
-             const auto beforeFirst = (first + n - 1) % n;
-             const auto afterLast = (last + 1) % n;
-
-             const auto clampToSpring = [&](const auto p) {
-               return vm::vec2d{p.x(), std::max(p.y(), vMin)};
-             };
-
-             auto outerBoundary = std::vector<vm::vec2d>{};
-             auto innerBoundary = std::vector<vm::vec2d>{};
-             outerBoundary.push_back(crossingAtV(outer[beforeFirst], outer[first], vMin));
-             innerBoundary.push_back(crossingAtV(inner[beforeFirst], inner[first], vMin));
-             for (const auto i : upper)
-             {
-               outerBoundary.push_back(outer[i]);
-               innerBoundary.push_back(clampToSpring(inner[i]));
-             }
-             outerBoundary.push_back(crossingAtV(outer[last], outer[afterLast], vMin));
-             innerBoundary.push_back(crossingAtV(inner[last], inner[afterLast], vMin));
-
-             const auto toPoint = [&](const vm::vec2d& p, const double w) {
-               auto result = vm::vec3d{};
-               result[axes.span] = p.x();
-               result[axes.vertical] = p.y();
-               result[axes.tunnel] = w;
-               return result;
-             };
-
-             // Build each voussoir independently, skipping any that are degenerate
-             // mid-drag.
-             return std::views::iota(0u, outerBoundary.size() - 1)
-                    | std::views::transform([&](const auto j) {
-                        const auto& o0 = outerBoundary[j];
-                        const auto& o1 = outerBoundary[j + 1];
-                        const auto& i0 = innerBoundary[j];
-                        const auto& i1 = innerBoundary[j + 1];
-
-                        const auto vertices = std::vector{
-                          toPoint(o0, wMin),
-                          toPoint(o0, wMax),
-                          toPoint(o1, wMin),
-                          toPoint(o1, wMax),
-                          toPoint(i0, wMin),
-                          toPoint(i0, wMax),
-                          toPoint(i1, wMin),
-                          toPoint(i1, wMax),
-                        };
-
-                        return createBrush(vertices, textureName);
-                      })
-                    | kdl::values();
-           });
+  auto outerBoundary = archBoundary(circle, upper, vMin);
+  return ArchCrossSection{
+    axes, circleBounds, std::move(circle), std::move(upper), std::move(outerBoundary)};
 }
 
-namespace
+vm::vec3d archPoint(const ArchAxes& axes, const vm::vec2d& p, const double w)
 {
+  auto result = vm::vec3d{};
+  result[axes.span] = p.x();
+  result[axes.vertical] = p.y();
+  result[axes.tunnel] = w;
+  return result;
+}
+
 auto setZ(const std::vector<vm::vec2d>& vertices, const double z)
 {
   return vertices | std::views::transform([&](const auto& v) { return vm::vec3d{v, z}; })
@@ -678,24 +468,7 @@ auto makeCone(const CircleShape& circleShape, const vm::bbox3d& boundsXY)
       }),
     circleShape);
 }
-} // namespace
 
-Result<Brush> BrushBuilder::createCone(
-  const vm::bbox3d& bounds,
-  const CircleShape& circleShape,
-  const vm::axis::type axis,
-  const std::string& textureName) const
-{
-  const auto toXY = vm::rotation_matrix(vm::vec3d::axis(axis), vm::vec3d{0, 0, 1});
-  const auto fromXY = vm::rotation_matrix(vm::vec3d{0, 0, 1}, vm::vec3d::axis(axis));
-  const auto boundsXY = bounds.transform(toXY);
-
-  const auto cone = makeCone(circleShape, boundsXY);
-  return createBrush(fromXY * cone, textureName);
-}
-
-namespace
-{
 auto subDivideRatios(const std::vector<double>& ratios)
 {
   auto newRatios = std::vector<double>{};
@@ -744,7 +517,7 @@ auto makeZRatiosPerRing(const size_t precision)
   return zRatios;
 }
 
-auto makeScalableUVSphere(const vm::bbox3d& boundsXY, const size_t precision)
+auto makeScalableUvSphere(const vm::bbox3d& boundsXY, const size_t precision)
 {
   const auto zRatios = makeZRatiosPerRing(precision);
   const auto getZ = [&](const size_t i) {
@@ -785,7 +558,7 @@ auto makeRing(
          | kdl::ranges::to<std::vector>();
 }
 
-auto makeAlignedUVSphere(
+auto makeAlignedUvSphere(
   const vm::bbox3d& boundsXY, const CircleShape& circleShape, const size_t numRings)
 {
   const auto angleDelta = vm::Cd::pi() / (double(numRings) + 1.0);
@@ -812,7 +585,333 @@ auto makeAlignedUVSphere(
 
 } // namespace
 
-Result<Brush> BrushBuilder::createUVSphere(
+BrushBuilder::BrushBuilder(const MapFormat mapFormat, const vm::bbox3d& worldBounds)
+  : m_mapFormat{mapFormat}
+  , m_worldBounds{worldBounds}
+  , m_defaultUvAttributes{}
+  , m_defaultSurfaceAttributes{}
+{
+}
+
+BrushBuilder::BrushBuilder(
+  const MapFormat mapFormat,
+  const vm::bbox3d& worldBounds,
+  UvAttributes defaultUvAttributes,
+  SurfaceAttributes defaultSurfaceAttributes)
+  : m_mapFormat{mapFormat}
+  , m_worldBounds{worldBounds}
+  , m_defaultUvAttributes{std::move(defaultUvAttributes)}
+  , m_defaultSurfaceAttributes{std::move(defaultSurfaceAttributes)}
+{
+}
+
+Result<Brush> BrushBuilder::createCube(
+  const double size, const std::string& materialName) const
+{
+  return createCuboid(
+    vm::bbox3d{size / 2.0},
+    materialName,
+    materialName,
+    materialName,
+    materialName,
+    materialName,
+    materialName);
+}
+
+Result<Brush> BrushBuilder::createCube(
+  double size,
+  const std::string& leftMaterial,
+  const std::string& rightMaterial,
+  const std::string& frontMaterial,
+  const std::string& backMaterial,
+  const std::string& topMaterial,
+  const std::string& bottomMaterial) const
+{
+  return createCuboid(
+    vm::bbox3d{size / 2.0},
+    leftMaterial,
+    rightMaterial,
+    frontMaterial,
+    backMaterial,
+    topMaterial,
+    bottomMaterial);
+}
+
+Result<Brush> BrushBuilder::createCuboid(
+  const vm::vec3d& size, const std::string& materialName) const
+{
+  return createCuboid(
+    vm::bbox3d{-size / 2.0, size / 2.0},
+    materialName,
+    materialName,
+    materialName,
+    materialName,
+    materialName,
+    materialName);
+}
+
+Result<Brush> BrushBuilder::createCuboid(
+  const vm::vec3d& size,
+  const std::string& leftMaterial,
+  const std::string& rightMaterial,
+  const std::string& frontMaterial,
+  const std::string& backMaterial,
+  const std::string& topMaterial,
+  const std::string& bottomMaterial) const
+{
+  return createCuboid(
+    vm::bbox3d{-size / 2.0, size / 2.0},
+    leftMaterial,
+    rightMaterial,
+    frontMaterial,
+    backMaterial,
+    topMaterial,
+    bottomMaterial);
+}
+
+Result<Brush> BrushBuilder::createCuboid(
+  const vm::bbox3d& bounds, const std::string& materialName) const
+{
+  return createCuboid(
+    bounds,
+    materialName,
+    materialName,
+    materialName,
+    materialName,
+    materialName,
+    materialName);
+}
+
+Result<Brush> BrushBuilder::createCuboid(
+  const vm::bbox3d& bounds,
+  const std::string& leftMaterial,
+  const std::string& rightMaterial,
+  const std::string& frontMaterial,
+  const std::string& backMaterial,
+  const std::string& topMaterial,
+  const std::string& bottomMaterial) const
+{
+  return std::vector{
+           BrushFace::create(
+             bounds.min,
+             bounds.min + vm::vec3d{0, 1, 0},
+             bounds.min + vm::vec3d{0, 0, 1},
+             leftMaterial,
+             m_defaultUvAttributes,
+             m_defaultSurfaceAttributes,
+             m_mapFormat), // left
+           BrushFace::create(
+             bounds.max,
+             bounds.max + vm::vec3d{0, 0, 1},
+             bounds.max + vm::vec3d{0, 1, 0},
+             rightMaterial,
+             m_defaultUvAttributes,
+             m_defaultSurfaceAttributes,
+             m_mapFormat), // right
+           BrushFace::create(
+             bounds.min,
+             bounds.min + vm::vec3d{0, 0, 1},
+             bounds.min + vm::vec3d{1, 0, 0},
+             frontMaterial,
+             m_defaultUvAttributes,
+             m_defaultSurfaceAttributes,
+             m_mapFormat), // front
+           BrushFace::create(
+             bounds.max,
+             bounds.max + vm::vec3d{1, 0, 0},
+             bounds.max + vm::vec3d{0, 0, 1},
+             backMaterial,
+             m_defaultUvAttributes,
+             m_defaultSurfaceAttributes,
+             m_mapFormat), // back
+           BrushFace::create(
+             bounds.max,
+             bounds.max + vm::vec3d{0, 1, 0},
+             bounds.max + vm::vec3d{1, 0, 0},
+             topMaterial,
+             m_defaultUvAttributes,
+             m_defaultSurfaceAttributes,
+             m_mapFormat), // top
+           BrushFace::create(
+             bounds.min,
+             bounds.min + vm::vec3d{1, 0, 0},
+             bounds.min + vm::vec3d{0, 1, 0},
+             bottomMaterial,
+             m_defaultUvAttributes,
+             m_defaultSurfaceAttributes,
+             m_mapFormat), // bottom
+         }
+         | kdl::fold | kdl::and_then([&](auto faces) {
+             return Brush::create(m_worldBounds, std::move(faces));
+           });
+}
+
+Result<Brush> BrushBuilder::createCylinder(
+  const vm::bbox3d& bounds,
+  const CircleShape& circleShape,
+  const vm::axis::type axis,
+  const std::string& textureName) const
+{
+  const auto toXY = vm::rotation_matrix(vm::vec3d::axis(axis), vm::vec3d{0, 0, 1});
+  const auto fromXY = vm::rotation_matrix(vm::vec3d{0, 0, 1}, vm::vec3d::axis(axis));
+
+  const auto cylinder = makeCylinder(circleShape, bounds.transform(toXY));
+  return createBrush(fromXY * cylinder, textureName);
+}
+
+Result<std::vector<Brush>> BrushBuilder::createHollowCylinder(
+  const vm::bbox3d& bounds,
+  const double thickness,
+  const CircleShape& circleShape,
+  const vm::axis::type axis,
+  const std::string& textureName) const
+{
+  const auto toXY = vm::rotation_matrix(vm::vec3d::axis(axis), vm::vec3d{0, 0, 1});
+  const auto fromXY = vm::rotation_matrix(vm::vec3d{0, 0, 1}, vm::vec3d::axis(axis));
+  const auto boundsXY = bounds.transform(toXY);
+
+  const auto outerCircle = makeCircle(circleShape, boundsXY.xy());
+
+  return makeHollowCylinderInnerCircle(outerCircle, thickness, circleShape, boundsXY.xy())
+    .and_then([&](const auto& innerCircle) {
+      contract_assert(innerCircle.size() == outerCircle.size());
+
+      const auto numFragments = outerCircle.size();
+
+      auto brushes = std::vector<Result<Brush>>{};
+      brushes.reserve(numFragments);
+
+      for (size_t i = 0; i < numFragments; ++i)
+      {
+        const auto fragmentVertices =
+          makeHollowCylinderFragmentVertices(outerCircle, innerCircle, i, boundsXY);
+        const auto rotatedFragmentVertices = fromXY * fragmentVertices;
+
+        brushes.push_back(createBrush(rotatedFragmentVertices, textureName));
+      }
+
+      return brushes | kdl::fold;
+    });
+}
+
+Result<std::vector<Brush>> BrushBuilder::createArch(
+  const vm::bbox3d& bounds,
+  const double thickness,
+  const CircleShape& circleShape,
+  const vm::axis::type axis,
+  const std::string& textureName) const
+{
+  const auto section = makeArchCrossSection(bounds, circleShape, axis);
+  if (!section)
+  {
+    return Result<std::vector<Brush>>{std::vector<Brush>{}};
+  }
+
+  const auto& axes = section->axes;
+  const auto vMin = bounds.min[axes.vertical];
+  const auto wMin = bounds.min[axes.tunnel];
+  const auto wMax = bounds.max[axes.tunnel];
+
+  return makeHollowCylinderInnerCircle(
+           section->circle, thickness, circleShape, section->circleBounds)
+         | kdl::and_then([&](const auto& inner) {
+             contract_assert(inner.size() == section->circle.size());
+
+             const auto& outerBoundary = section->outerBoundary;
+             const auto innerBoundary = archBoundary(inner, section->upper, vMin);
+
+             // Build each voussoir independently, skipping any that are degenerate
+             // mid-drag.
+             return std::views::iota(0u, outerBoundary.size() - 1)
+                    | std::views::transform([&](const auto j) {
+                        const auto& o0 = outerBoundary[j];
+                        const auto& o1 = outerBoundary[j + 1];
+                        const auto& i0 = innerBoundary[j];
+                        const auto& i1 = innerBoundary[j + 1];
+
+                        return Polyhedron3{
+                          archPoint(axes, o0, wMin),
+                          archPoint(axes, o0, wMax),
+                          archPoint(axes, o1, wMin),
+                          archPoint(axes, o1, wMax),
+                          archPoint(axes, i0, wMin),
+                          archPoint(axes, i0, wMax),
+                          archPoint(axes, i1, wMin),
+                          archPoint(axes, i1, wMax),
+                        };
+                      })
+                    | std::views::filter([](const auto& p) { return p.polyhedron(); })
+                    | std::views::transform([&](const auto& polyhedron) {
+                        return createBrush(polyhedron, textureName);
+                      })
+                    | kdl::fold;
+           });
+}
+
+Result<std::vector<Brush>> BrushBuilder::createSpandrelForArch(
+  const vm::bbox3d& bounds,
+  const double,
+  const CircleShape& circleShape,
+  const vm::axis::type axis,
+  const std::string& textureName) const
+{
+  const auto section = makeArchCrossSection(bounds, circleShape, axis);
+  if (!section)
+  {
+    return Result<std::vector<Brush>>{std::vector<Brush>{}};
+  }
+
+  const auto& axes = section->axes;
+  const auto sMin = bounds.min[axes.span];
+  const auto sMax = bounds.max[axes.span];
+  const auto vMin = bounds.min[axes.vertical];
+  const auto vMax = bounds.max[axes.vertical];
+  const auto wMin = bounds.min[axes.tunnel];
+  const auto wMax = bounds.max[axes.tunnel];
+
+  const auto& outerBoundary = section->outerBoundary;
+  const auto center = vm::vec2d{(sMin + sMax) / 2.0, vMin};
+
+  // The outer boundary is convex and touches the top of the bounds, so fanning its
+  // segments to the corner they face tiles the gap exactly. Segments that lie on the
+  // bounds themselves fan into a degenerate brush and drop out.
+  return std::views::iota(0u, outerBoundary.size() - 1)
+         | std::views::transform([&](const auto j) {
+             const auto& o0 = outerBoundary[j];
+             const auto& o1 = outerBoundary[j + 1];
+             const auto corner =
+               vm::vec2d{outwardNormal(o0, o1, center).x() < 0.0 ? sMin : sMax, vMax};
+
+             return Polyhedron3{
+               archPoint(axes, o0, wMin),
+               archPoint(axes, o0, wMax),
+               archPoint(axes, o1, wMin),
+               archPoint(axes, o1, wMax),
+               archPoint(axes, corner, wMin),
+               archPoint(axes, corner, wMax),
+             };
+           })
+         | std::views::filter([](const auto& p) { return p.polyhedron(); })
+         | std::views::transform(
+           [&](const auto& polyhedron) { return createBrush(polyhedron, textureName); })
+         | kdl::fold;
+}
+
+Result<Brush> BrushBuilder::createCone(
+  const vm::bbox3d& bounds,
+  const CircleShape& circleShape,
+  const vm::axis::type axis,
+  const std::string& textureName) const
+{
+  const auto toXY = vm::rotation_matrix(vm::vec3d::axis(axis), vm::vec3d{0, 0, 1});
+  const auto fromXY = vm::rotation_matrix(vm::vec3d{0, 0, 1}, vm::vec3d::axis(axis));
+  const auto boundsXY = bounds.transform(toXY);
+
+  const auto cone = makeCone(circleShape, boundsXY);
+  return createBrush(fromXY * cone, textureName);
+}
+
+Result<Brush> BrushBuilder::createUvSphere(
   const vm::bbox3d& bounds,
   const CircleShape& circleShape,
   const size_t numRings,
@@ -826,10 +925,10 @@ Result<Brush> BrushBuilder::createUVSphere(
   const auto sphere = std::visit(
     kdl::overload(
       [&](const ScalableCircle& scalable) {
-        return makeScalableUVSphere(boundsXY, scalable.precision);
+        return makeScalableUvSphere(boundsXY, scalable.precision);
       },
       [&](const auto& edgeOrVertexAligned) {
-        return makeAlignedUVSphere(boundsXY, edgeOrVertexAligned, numRings);
+        return makeAlignedUvSphere(boundsXY, edgeOrVertexAligned, numRings);
       }),
     circleShape);
 
@@ -851,7 +950,9 @@ Result<Brush> BrushBuilder::createIcoSphere(
                p1,
                p2,
                p3,
-               BrushFaceAttributes{textureName, m_defaultAttribs},
+               textureName,
+               m_defaultUvAttributes,
+               m_defaultSurfaceAttributes,
                m_mapFormat);
            })
          | kdl::fold | kdl::and_then([&](auto f) {
@@ -897,7 +998,9 @@ Result<Brush> BrushBuilder::createBrush(
              p1,
              p3,
              p2,
-             BrushFaceAttributes{materialName, m_defaultAttribs},
+             materialName,
+             m_defaultUvAttributes,
+             m_defaultSurfaceAttributes,
              m_mapFormat);
          })
          | kdl::fold | kdl::and_then([&](auto faces) {

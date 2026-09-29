@@ -451,8 +451,8 @@ TEST_CASE("Terrain")
       {
         for (const auto& face : brush.faces())
         {
-          CHECK(face.attributes().scale() == vm::vec2f{2.0f, 4.0f});
-          const auto& name = face.attributes().materialName();
+          CHECK(face.uvAttributes().scale == vm::vec2f{2.0f, 4.0f});
+          const auto& name = face.materialName();
           CHECK((name == "some_material" || name == "painted"));
           foundPainted = foundPainted || name == "painted";
         }
